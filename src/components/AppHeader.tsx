@@ -2,10 +2,10 @@ interface AppHeaderProps {
   isParent: boolean;
   totalEarned: number;
   payoutPending: boolean;
-  onSwitchRole: () => void;
+  onLogout: () => void;
 }
 
-export function AppHeader({ isParent, totalEarned, payoutPending, onSwitchRole }: AppHeaderProps) {
+export function AppHeader({ isParent, totalEarned, payoutPending, onLogout }: AppHeaderProps) {
   return (
     <div className={`${isParent ? "bg-emerald-700" : "bg-indigo-600"} text-white px-4 py-4 flex items-center justify-between shadow-lg`}>
       <div>
@@ -20,9 +20,9 @@ export function AppHeader({ isParent, totalEarned, payoutPending, onSwitchRole }
           <p className={`${isParent ? "text-emerald-300" : "text-indigo-300"} text-xs`}>Balance</p>
           <p className={`text-lg font-bold ${totalEarned >= 0 ? "text-green-300" : "text-red-300"}`}>${totalEarned.toFixed(2)}</p>
         </div>
-        <button onClick={onSwitchRole}
+        <button onClick={onLogout}
           className={`${isParent ? "bg-emerald-600" : "bg-indigo-500"} rounded-xl px-3 py-2 text-xs font-medium`}>
-          {isParent ? "👨‍👩‍👧" : "👩‍🎓"} Switch
+          Log out
         </button>
       </div>
     </div>

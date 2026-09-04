@@ -89,6 +89,14 @@ export interface NotificationSettings {
 
 export type Role = "student" | "parent";
 
+export interface AuthUser {
+  id: string;
+  familyId: string;
+  role: Role;
+  name: string;
+  email: string;
+}
+
 export type View =
   | "dashboard"
   | "calendar"

@@ -1,7 +1,8 @@
-import { useState } from "react";
-import type { Assignment, Role, View } from "./types";
+import { useEffect, useState } from "react";
+import type { AuthUser, Assignment, View } from "./types";
 import { INITIAL_ASSIGNMENTS } from "./data/mockData";
 import { getRewardStatus } from "./lib/rewards";
+import { fetchCurrentUser, logout as apiLogout } from "./lib/api";
 import { LoginScreen } from "./components/LoginScreen";
 import { AppHeader } from "./components/AppHeader";
 import { BottomNav, type NavItem } from "./components/BottomNav";
@@ -35,22 +36,39 @@ const PARENT_NAVS: NavItem[] = [
 ];
 
 export default function App() {
-  const [role, setRole] = useState<Role | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [view, setView] = useState<View>("dashboard");
   const [assignments, setAssignments] = useState<Assignment[]>(INITIAL_ASSIGNMENTS);
   const [payoutPending, setPayoutPending] = useState(false);
+
+  useEffect(() => {
+    fetchCurrentUser()
+      .then(setUser)
+      .finally(() => setCheckingSession(false));
+  }, []);
 
   const totalEarned = assignments.reduce((s, a) => {
     const r = getRewardStatus(a);
     return s + (r.earned ?? 0);
   }, 0);
 
-  if (!role) {
-    return <LoginScreen onLogin={r => { setRole(r); setView("dashboard"); }} />;
+  if (checkingSession) {
+    return <div className="min-h-screen bg-gray-50" />;
   }
 
-  const isParent = role === "parent";
+  if (!user) {
+    return <LoginScreen onLogin={u => { setUser(u); setView("dashboard"); }} />;
+  }
+
+  const isParent = user.role === "parent";
   const navs = isParent ? PARENT_NAVS : STUDENT_NAVS;
+
+  async function handleLogout() {
+    await apiLogout();
+    setUser(null);
+    setView("dashboard");
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
@@ -58,7 +76,7 @@ export default function App() {
         isParent={isParent}
         totalEarned={totalEarned}
         payoutPending={payoutPending}
-        onSwitchRole={() => { setRole(null); setView("dashboard"); }}
+        onLogout={handleLogout}
       />
 
       <div className="overflow-y-auto" style={{ height: "calc(100vh - 130px)" }}>

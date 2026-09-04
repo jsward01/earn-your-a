@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "earn-your-a",
+  "compatibility_date": "2026-09-01",
+  "pages_build_output_dir": "dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "earn-your-a-db",
+      "database_id": "5633661c-8282-4452-a963-88a72e1f81d4",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

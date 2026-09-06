@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Assignment, PayoutAction } from "../../types";
 import { getSubjectColor, getSubjectLight, getDaysLeftColor } from "../../lib/styles";
+import { fetchPayouts, resolvePayout, type PayoutRequestRow, type RewardSummary } from "../../lib/api";
 
 interface ParentOverviewProps {
   assignments: Assignment[];
-  payoutPending: boolean;
-  setPayoutPending: (pending: boolean) => void;
+  summary: RewardSummary | null;
+  onChanged: () => void;
 }
 
 function getDueSoonColor(date: string): string {
@@ -23,12 +24,31 @@ function getDueSoonLabel(date: string): { text: string; color: string } {
   return { text: `Due ${date}`, color: "text-gray-400" };
 }
 
-export function ParentOverview({ assignments, payoutPending, setPayoutPending }: ParentOverviewProps) {
+export function ParentOverview({ assignments, summary, onChanged }: ParentOverviewProps) {
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [payoutAction, setPayoutAction] = useState<PayoutAction | null>(null);
-  const balance = 23;
-  const holdback = 20;
-  const available = balance - holdback;
+  const [payouts, setPayouts] = useState<PayoutRequestRow[]>([]);
+  const [resolving, setResolving] = useState(false);
+  const payoutPending = summary?.payoutPending ?? false;
+  const pending = payouts.find(p => p.status === "pending");
+
+  useEffect(() => {
+    fetchPayouts().then(setPayouts).catch(err => console.error("Failed to load payouts", err));
+  }, [summary]);
+
+  async function handleResolve(action: "approve" | "deny") {
+    if (!pending) return;
+    setResolving(true);
+    try {
+      await resolvePayout(pending.id, action);
+      onChanged();
+      setShowPayoutModal(false);
+    } catch (err) {
+      console.error("Failed to resolve payout", err);
+    } finally {
+      setResolving(false);
+    }
+  }
 
   const upcoming = assignments
     .filter(a => a.status === "pending")
@@ -43,11 +63,11 @@ export function ParentOverview({ assignments, payoutPending, setPayoutPending }:
   return (
     <div className="pb-4 px-4 pt-4 space-y-4">
 
-      {payoutPending && (
+      {payoutPending && pending && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xl">💸</span>
-            <div><p className="font-bold text-yellow-800">Payout Request from Sarah</p><p className="text-xs text-yellow-600">Requesting ${available}.00 • Submitted just now</p></div>
+            <div><p className="font-bold text-yellow-800">Payout Request from {summary?.studentName ?? "your student"}</p><p className="text-xs text-yellow-600">Requesting ${pending.amount.toFixed(2)} • Submitted {new Date(pending.requestedAt).toLocaleString()}</p></div>
           </div>
           <div className="flex gap-2">
             <button onClick={() => { setPayoutAction("approve"); setShowPayoutModal(true); }} className="flex-1 bg-green-500 text-white py-2 rounded-xl text-sm font-bold">✅ Approve</button>
@@ -183,30 +203,26 @@ export function ParentOverview({ assignments, payoutPending, setPayoutPending }:
         }
       </div>
 
-      {showPayoutModal && (
+      {showPayoutModal && pending && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
           <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
             {payoutAction === "approve" && <>
               <h2 className="text-lg font-bold text-gray-800">✅ Approve Payout</h2>
               <div className="bg-green-50 rounded-2xl p-4">
-                <div className="flex justify-between text-sm mb-2"><span>Amount</span><span className="font-bold text-green-600">${available}.00</span></div>
-                <div className="flex justify-between text-sm"><span>Holdback retained</span><span className="font-bold">${holdback}.00</span></div>
+                <div className="flex justify-between text-sm mb-2"><span>Amount</span><span className="font-bold text-green-600">${pending.amount.toFixed(2)}</span></div>
+                <div className="flex justify-between text-sm"><span>Holdback retained</span><span className="font-bold">${pending.holdbackAmount.toFixed(2)}</span></div>
               </div>
-              <button onClick={() => { setPayoutPending(false); setShowPayoutModal(false); }} className="w-full bg-green-500 text-white py-3 rounded-xl font-semibold">Confirm Approval</button>
+              <button onClick={() => handleResolve("approve")} disabled={resolving} className="w-full bg-green-500 text-white py-3 rounded-xl font-semibold disabled:opacity-40">{resolving ? "Confirming…" : "Confirm Approval"}</button>
             </>}
             {payoutAction === "delay" && <>
               <h2 className="text-lg font-bold text-gray-800">⏰ Delay Payout</h2>
-              <p className="text-sm text-gray-500">The payout will stay pending. Sarah will be notified you'll pay soon.</p>
-              <div className="grid grid-cols-3 gap-2">
-                {["Tonight", "This Weekend", "Next Week"].map(d => (
-                  <button key={d} onClick={() => { setPayoutPending(false); setShowPayoutModal(false); }} className="bg-yellow-100 text-yellow-800 py-3 rounded-xl text-sm font-semibold">{d}</button>
-                ))}
-              </div>
+              <p className="text-sm text-gray-500">The request stays pending — {summary?.studentName ?? "your student"} will see it's still awaiting your approval.</p>
+              <button onClick={() => setShowPayoutModal(false)} className="w-full bg-yellow-100 text-yellow-800 py-3 rounded-xl text-sm font-semibold">Okay, I'll pay soon</button>
             </>}
             {payoutAction === "deny" && <>
               <h2 className="text-lg font-bold text-gray-800">❌ Deny Payout</h2>
-              <p className="text-sm text-gray-500">Sarah will be notified the payout was denied and the balance will remain.</p>
-              <button onClick={() => { setPayoutPending(false); setShowPayoutModal(false); }} className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold">Confirm Denial</button>
+              <p className="text-sm text-gray-500">{summary?.studentName ?? "Your student"} will be notified the payout was denied and the balance will remain.</p>
+              <button onClick={() => handleResolve("deny")} disabled={resolving} className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold disabled:opacity-40">{resolving ? "Confirming…" : "Confirm Denial"}</button>
             </>}
             <button onClick={() => setShowPayoutModal(false)} className="w-full text-gray-400 text-sm">Cancel</button>
           </div>

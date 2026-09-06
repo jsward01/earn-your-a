@@ -20,25 +20,6 @@ export interface RewardStatus {
   color: string;
 }
 
-export interface WeeklyHistoryItem {
-  title: string;
-  subject: string;
-  amount: number;
-}
-
-export interface WeeklyHistoryWeek {
-  week: string;
-  net: number;
-  items: WeeklyHistoryItem[];
-}
-
-export interface PayoutHistoryEntry {
-  date: string;
-  amount: number;
-  status: string;
-  method: string;
-}
-
 export interface SavingsGoal {
   name: string;
   amount: number;

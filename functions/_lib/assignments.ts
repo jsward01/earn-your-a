@@ -12,25 +12,6 @@ export interface AssignmentRow {
   makeup_used: number;
 }
 
-interface RewardSettingsRow {
-  passing_threshold: number;
-  makeup_window_days: number;
-}
-
-export async function getRewardSettings(
-  db: D1Database,
-  familyId: string,
-): Promise<{ passingThreshold: number; makeupWindowDays: number }> {
-  const row = await db
-    .prepare("SELECT passing_threshold, makeup_window_days FROM reward_settings WHERE family_id = ?")
-    .bind(familyId)
-    .first<RewardSettingsRow>();
-  return {
-    passingThreshold: row?.passing_threshold ?? 70,
-    makeupWindowDays: row?.makeup_window_days ?? 7,
-  };
-}
-
 export async function getStudentId(db: D1Database, familyId: string): Promise<string | null> {
   const row = await db
     .prepare("SELECT id FROM users WHERE family_id = ? AND role = 'student' LIMIT 1")

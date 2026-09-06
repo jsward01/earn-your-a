@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { AuthUser, Assignment, View } from "./types";
-import { getRewardStatus } from "./lib/rewards";
-import { fetchCurrentUser, fetchAssignments, logout as apiLogout } from "./lib/api";
+import { fetchCurrentUser, fetchAssignments, fetchRewardSummary, logout as apiLogout, type RewardSummary } from "./lib/api";
 import { LoginScreen } from "./components/LoginScreen";
 import { AppHeader } from "./components/AppHeader";
 import { BottomNav, type NavItem } from "./components/BottomNav";
@@ -39,7 +38,13 @@ export default function App() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [view, setView] = useState<View>("dashboard");
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [payoutPending, setPayoutPending] = useState(false);
+  const [summary, setSummary] = useState<RewardSummary | null>(null);
+
+  const refreshSummary = useCallback(() => {
+    fetchRewardSummary()
+      .then(setSummary)
+      .catch(err => console.error("Failed to load reward summary", err));
+  }, []);
 
   useEffect(() => {
     fetchCurrentUser()
@@ -52,12 +57,11 @@ export default function App() {
     fetchAssignments()
       .then(setAssignments)
       .catch(err => console.error("Failed to load assignments", err));
-  }, [user]);
+    refreshSummary();
+  }, [user, refreshSummary]);
 
-  const totalEarned = assignments.reduce((s, a) => {
-    const r = getRewardStatus(a);
-    return s + (r.earned ?? 0);
-  }, 0);
+  const totalEarned = summary?.balance ?? 0;
+  const payoutPending = summary?.payoutPending ?? false;
 
   if (checkingSession) {
     return <div className="min-h-screen bg-gray-50" />;
@@ -74,6 +78,7 @@ export default function App() {
     await apiLogout();
     setUser(null);
     setAssignments([]);
+    setSummary(null);
     setView("dashboard");
   }
 
@@ -87,16 +92,16 @@ export default function App() {
       />
 
       <div className="overflow-y-auto" style={{ height: "calc(100vh - 130px)" }}>
-        {!isParent && view === "dashboard" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} />}
-        {!isParent && view === "rewards" && <StudentRewards payoutPending={payoutPending} setPayoutPending={setPayoutPending} />}
+        {!isParent && view === "dashboard" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} onChanged={refreshSummary} />}
+        {!isParent && view === "rewards" && <StudentRewards summary={summary} onChanged={refreshSummary} />}
         {view === "messages" && <MessagesScreen isParent={isParent} />}
         {view === "calendar" && <CalendarView assignments={assignments} isParent={isParent} />}
         {view === "weekly" && <WeeklySummary assignments={assignments} isParent={isParent} />}
         {view === "notifications" && <NotificationCenter assignments={assignments} isParent={isParent} payoutPending={payoutPending} />}
         {!isParent && view === "ai" && <AIBreakdown />}
         {!isParent && view === "profile" && <StudentProfile />}
-        {isParent && view === "dashboard" && <ParentOverview assignments={assignments} payoutPending={payoutPending} setPayoutPending={setPayoutPending} />}
-        {isParent && view === "assignments" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} />}
+        {isParent && view === "dashboard" && <ParentOverview assignments={assignments} summary={summary} onChanged={refreshSummary} />}
+        {isParent && view === "assignments" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} onChanged={refreshSummary} />}
         {isParent && view === "settings" && <ParentSettings />}
       </div>
 

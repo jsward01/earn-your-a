@@ -8,6 +8,7 @@ import { createAssignment, updateAssignment, deleteAssignment } from "../../lib/
 interface StudentDashboardProps {
   assignments: Assignment[];
   setAssignments: (assignments: Assignment[]) => void;
+  onChanged: () => void;
 }
 
 const TABS = ["all", "pending", "graded", "missing", "makeup"] as const;
@@ -15,7 +16,7 @@ type Tab = (typeof TABS)[number];
 
 const EMPTY_FORM: NewAssignmentForm = { title: "", subject: "Math", type: "assignment", dueDate: "", status: "pending", grade: "" };
 
-export function StudentDashboard({ assignments, setAssignments }: StudentDashboardProps) {
+export function StudentDashboard({ assignments, setAssignments, onChanged }: StudentDashboardProps) {
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newA, setNewA] = useState<NewAssignmentForm>(EMPTY_FORM);
@@ -47,6 +48,7 @@ export function StudentDashboard({ assignments, setAssignments }: StudentDashboa
       setAssignments([...assignments, created]);
       setShowAddModal(false);
       setNewA(EMPTY_FORM);
+      onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to add assignment");
     } finally {
@@ -72,6 +74,7 @@ export function StudentDashboard({ assignments, setAssignments }: StudentDashboa
       });
       setAssignments(assignments.map(a => (a.id === editing.id ? updated : a)));
       setEditing(null);
+      onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save changes");
     } finally {
@@ -87,6 +90,7 @@ export function StudentDashboard({ assignments, setAssignments }: StudentDashboa
       await deleteAssignment(editing.id);
       setAssignments(assignments.filter(a => a.id !== editing.id));
       setEditing(null);
+      onChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to delete assignment");
     } finally {

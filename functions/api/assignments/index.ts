@@ -1,6 +1,7 @@
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
-import { getRewardSettings, getStudentId, nextMakeupState, toAssignmentJson, type AssignmentRow } from "../../_lib/assignments";
+import { getStudentId, nextMakeupState, toAssignmentJson, type AssignmentRow } from "../../_lib/assignments";
+import { getFullRewardSettings, syncAssignmentRewardTransaction } from "../../_lib/rewards";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -57,8 +58,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const studentId = await getStudentId(context.env.DB, user.familyId);
   if (!studentId) return json({ error: "No student found for this family" }, 400);
 
-  const { passingThreshold, makeupWindowDays } = await getRewardSettings(context.env.DB, user.familyId);
-  const makeup = nextMakeupState({ deadline: null }, status, grade, passingThreshold, makeupWindowDays, new Date());
+  const settings = await getFullRewardSettings(context.env.DB, user.familyId);
+  const makeup = nextMakeupState({ deadline: null }, status, grade, settings.passingThreshold, settings.makeupWindowDays, new Date());
 
   const id = crypto.randomUUID();
   await context.env.DB
@@ -68,6 +69,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     )
     .bind(id, user.familyId, studentId, title, subject, type, dueDate, status, grade, makeup.deadline, makeup.used)
     .run();
+
+  await syncAssignmentRewardTransaction(
+    context.env.DB,
+    { assignmentId: id, familyId: user.familyId, studentId },
+    { type: type as AssignmentRow["type"], status: status as AssignmentRow["status"], grade, title },
+    settings,
+  );
 
   const row = await context.env.DB.prepare("SELECT * FROM assignments WHERE id = ?").bind(id).first<AssignmentRow>();
   return json(toAssignmentJson(row!), 201);

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { RewardSettings } from "../../types";
+import { fetchFamilyAccounts, resetUserPassword, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
 
 const DEFAULT_SETTINGS: RewardSettings = {
   assignmentReward: 3, testReward: 20, passingThreshold: 70,
@@ -36,13 +37,54 @@ const PAYOUT_SCHEDULES: { val: RewardSettings["payoutSchedule"]; label: string }
 
 export function ParentSettings() {
   const [settings, setSettings] = useState<RewardSettings>(DEFAULT_SETTINGS);
+  const [accounts, setAccounts] = useState<FamilyAccount[]>([]);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [resetResult, setResetResult] = useState<PasswordResetResult | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
 
   function update<K extends keyof RewardSettings>(key: K, val: RewardSettings[K]) {
     setSettings({ ...settings, [key]: val });
   }
 
+  useEffect(() => {
+    fetchFamilyAccounts().then(setAccounts).catch(err => console.error("Failed to load accounts", err));
+  }, []);
+
+  async function handleReset(userId: string) {
+    setResettingId(userId);
+    setResetError(null);
+    try {
+      const result = await resetUserPassword(userId);
+      setResetResult(result);
+    } catch (e) {
+      setResetError(e instanceof Error ? e.message : "Failed to reset password");
+    } finally {
+      setResettingId(null);
+    }
+  }
+
   return (
     <div className="pb-4 px-4 pt-4 space-y-4">
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+        <p className="text-xs text-gray-400 font-medium">ACCOUNT ACCESS</p>
+        {resetError && <p className="text-sm text-red-500">{resetError}</p>}
+        {accounts.map(a => (
+          <div key={a.id} className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-700">{a.name} <span className="text-xs text-gray-400 capitalize">({a.role})</span></p>
+              <p className="text-xs text-gray-400">{a.email}</p>
+            </div>
+            <button
+              onClick={() => handleReset(a.id)}
+              disabled={resettingId === a.id}
+              className="text-xs bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg font-medium disabled:opacity-40"
+            >
+              {resettingId === a.id ? "Resetting…" : "Reset Password"}
+            </button>
+          </div>
+        ))}
+      </div>
+
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
         <p className="text-xs text-gray-400 font-medium">REWARD TYPE</p>
         <div className="grid grid-cols-2 gap-2">
@@ -94,6 +136,27 @@ export function ParentSettings() {
       </div>
 
       <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm shadow">Save Settings</button>
+
+      {resetResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
+          <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
+            <h2 className="text-lg font-bold text-gray-800">Password Reset</h2>
+            <p className="text-sm text-gray-500">
+              New temporary password for <span className="font-semibold">{resetResult.name}</span> ({resetResult.email}).
+              Write it down now — it won't be shown again, and they'll be signed out of any active session.
+            </p>
+            <div className="bg-indigo-50 rounded-2xl p-4 text-center">
+              <p className="text-2xl font-bold text-indigo-700 tracking-wide font-mono">{resetResult.password}</p>
+            </div>
+            <button
+              onClick={() => setResetResult(null)}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

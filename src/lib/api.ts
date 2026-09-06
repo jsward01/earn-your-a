@@ -1,4 +1,4 @@
-import type { AuthUser, Assignment } from "../types";
+import type { AuthUser, Assignment, SavingsGoal } from "../types";
 import { fromApiRow, type AssignmentApiRow } from "./assignments";
 
 async function parseJsonOrThrow(res: Response): Promise<unknown> {
@@ -78,4 +78,104 @@ export async function deleteAssignment(id: string): Promise<void> {
   if (res.status !== 204 && !res.ok) {
     await parseJsonOrThrow(res);
   }
+}
+
+export interface RewardSummary {
+  studentId: string;
+  studentName: string;
+  balance: number;
+  holdback: number;
+  available: number;
+  rewardType: string;
+  payoutPending: boolean;
+  pendingPayoutId: string | null;
+}
+
+export async function fetchRewardSummary(): Promise<RewardSummary> {
+  const res = await fetch("/api/rewards/summary");
+  return (await parseJsonOrThrow(res)) as RewardSummary;
+}
+
+export interface RewardTransaction {
+  id: string;
+  amount: number;
+  reason: string;
+  subject: string | null;
+  type: string | null;
+  createdAt: string;
+}
+
+export async function fetchRewardTransactions(): Promise<RewardTransaction[]> {
+  const res = await fetch("/api/rewards/transactions");
+  return (await parseJsonOrThrow(res)) as RewardTransaction[];
+}
+
+export interface PayoutRequestRow {
+  id: string;
+  amount: number;
+  holdbackAmount: number;
+  status: "pending" | "paid" | "denied" | "delayed";
+  requestedAt: string;
+  resolvedAt: string | null;
+}
+
+export async function fetchPayouts(): Promise<PayoutRequestRow[]> {
+  const res = await fetch("/api/payouts");
+  return (await parseJsonOrThrow(res)) as PayoutRequestRow[];
+}
+
+export async function requestPayout(): Promise<PayoutRequestRow> {
+  const res = await fetch("/api/payouts", { method: "POST" });
+  return (await parseJsonOrThrow(res)) as PayoutRequestRow;
+}
+
+export async function resolvePayout(id: string, action: "approve" | "deny"): Promise<PayoutRequestRow> {
+  const res = await fetch(`/api/payouts/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action }),
+  });
+  return (await parseJsonOrThrow(res)) as PayoutRequestRow;
+}
+
+export async function fetchSavingsGoal(): Promise<SavingsGoal | null> {
+  const res = await fetch("/api/savings-goal");
+  return (await parseJsonOrThrow(res)) as SavingsGoal | null;
+}
+
+export async function saveSavingsGoal(goal: SavingsGoal): Promise<SavingsGoal> {
+  const res = await fetch("/api/savings-goal", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(goal),
+  });
+  return (await parseJsonOrThrow(res)) as SavingsGoal;
+}
+
+export interface FamilyAccount {
+  id: string;
+  name: string;
+  role: "parent" | "student";
+  email: string;
+}
+
+export async function fetchFamilyAccounts(): Promise<FamilyAccount[]> {
+  const res = await fetch("/api/users");
+  return (await parseJsonOrThrow(res)) as FamilyAccount[];
+}
+
+export interface PasswordResetResult {
+  userId: string;
+  name: string;
+  email: string;
+  password: string;
+}
+
+export async function resetUserPassword(userId: string): Promise<PasswordResetResult> {
+  const res = await fetch("/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId }),
+  });
+  return (await parseJsonOrThrow(res)) as PasswordResetResult;
 }

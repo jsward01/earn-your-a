@@ -32,6 +32,15 @@ export async function hashPassword(password: string): Promise<string> {
   return `pbkdf2$${PBKDF2_ITERATIONS}$${toBase64(salt)}$${toBase64(hash)}`;
 }
 
+const TEMP_PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+
+export function generateTempPassword(length = 14): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  let password = "";
+  for (const b of bytes) password += TEMP_PASSWORD_CHARS[b % TEMP_PASSWORD_CHARS.length];
+  return password;
+}
+
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   const parts = stored.split("$");
   if (parts.length !== 4 || parts[0] !== "pbkdf2") return false;

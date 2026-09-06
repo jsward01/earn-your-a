@@ -2,7 +2,7 @@ export type AssignmentType = "assignment" | "quiz" | "test";
 export type AssignmentStatus = "pending" | "graded" | "missing";
 
 export interface Assignment {
-  id: number;
+  id: string;
   title: string;
   subject: string;
   type: AssignmentType;

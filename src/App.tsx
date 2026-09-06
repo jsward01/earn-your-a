@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AuthUser, Assignment, View } from "./types";
-import { INITIAL_ASSIGNMENTS } from "./data/mockData";
 import { getRewardStatus } from "./lib/rewards";
-import { fetchCurrentUser, logout as apiLogout } from "./lib/api";
+import { fetchCurrentUser, fetchAssignments, logout as apiLogout } from "./lib/api";
 import { LoginScreen } from "./components/LoginScreen";
 import { AppHeader } from "./components/AppHeader";
 import { BottomNav, type NavItem } from "./components/BottomNav";
@@ -39,7 +38,7 @@ export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [view, setView] = useState<View>("dashboard");
-  const [assignments, setAssignments] = useState<Assignment[]>(INITIAL_ASSIGNMENTS);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [payoutPending, setPayoutPending] = useState(false);
 
   useEffect(() => {
@@ -47,6 +46,13 @@ export default function App() {
       .then(setUser)
       .finally(() => setCheckingSession(false));
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    fetchAssignments()
+      .then(setAssignments)
+      .catch(err => console.error("Failed to load assignments", err));
+  }, [user]);
 
   const totalEarned = assignments.reduce((s, a) => {
     const r = getRewardStatus(a);
@@ -67,6 +73,7 @@ export default function App() {
   async function handleLogout() {
     await apiLogout();
     setUser(null);
+    setAssignments([]);
     setView("dashboard");
   }
 

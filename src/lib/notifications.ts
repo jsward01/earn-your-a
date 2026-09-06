@@ -15,7 +15,8 @@ export function generateNotifications(
   isParent: boolean,
   payoutPending: boolean,
 ): AppNotification[] {
-  const today = new Date(2026, 2, 10);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const notes: AppNotification[] = [];
 
   assignments.forEach(a => {

@@ -36,7 +36,8 @@ function toDateStr(d: Date): string {
 }
 
 export function CalendarView({ assignments, isParent }: CalendarViewProps) {
-  const today = new Date(2026, 2, 10);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const [windowStart, setWindowStart] = useState<Date>(() => getWindowStart(today));
 
   const schoolDays = buildSchoolDays(windowStart);

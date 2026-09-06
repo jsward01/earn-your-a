@@ -1,8 +1,9 @@
 import { useState } from "react";
-import type { Assignment, NewAssignmentForm } from "../../types";
+import type { Assignment, AssignmentStatus, NewAssignmentForm } from "../../types";
 import { SUBJECTS } from "../../data/mockData";
 import { getRewardStatus } from "../../lib/rewards";
 import { getSubjectColor, getStatusBadge, getDaysLeftColor } from "../../lib/styles";
+import { createAssignment, updateAssignment, deleteAssignment } from "../../lib/api";
 
 interface StudentDashboardProps {
   assignments: Assignment[];
@@ -18,6 +19,12 @@ export function StudentDashboard({ assignments, setAssignments }: StudentDashboa
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newA, setNewA] = useState<NewAssignmentForm>(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [editing, setEditing] = useState<Assignment | null>(null);
+  const [editStatus, setEditStatus] = useState<AssignmentStatus>("pending");
+  const [editGrade, setEditGrade] = useState("");
 
   const filtered = activeTab === "all"
     ? assignments
@@ -25,18 +32,66 @@ export function StudentDashboard({ assignments, setAssignments }: StudentDashboa
       ? assignments.filter(a => a.makeupAvailable)
       : assignments.filter(a => a.status === activeTab);
 
-  function handleAdd() {
-    const isTestQuiz = newA.type === "test" || newA.type === "quiz";
-    const assignment: Assignment = {
-      ...newA,
-      id: assignments.length + 1,
-      grade: newA.grade ? parseInt(newA.grade, 10) : null,
-      daysLeft: 7,
-      rewardValue: isTestQuiz ? 20 : 3,
-    };
-    setAssignments([...assignments, assignment]);
-    setShowAddModal(false);
-    setNewA(EMPTY_FORM);
+  async function handleAdd() {
+    setSaving(true);
+    setError(null);
+    try {
+      const created = await createAssignment({
+        title: newA.title,
+        subject: newA.subject,
+        type: newA.type,
+        dueDate: newA.dueDate,
+        status: newA.status,
+        grade: newA.grade ? parseInt(newA.grade, 10) : null,
+      });
+      setAssignments([...assignments, created]);
+      setShowAddModal(false);
+      setNewA(EMPTY_FORM);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to add assignment");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openEdit(a: Assignment) {
+    setEditing(a);
+    setEditStatus(a.status);
+    setEditGrade(a.grade !== null ? String(a.grade) : "");
+    setError(null);
+  }
+
+  async function handleSaveEdit() {
+    if (!editing) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await updateAssignment(editing.id, {
+        status: editStatus,
+        grade: editGrade ? parseInt(editGrade, 10) : null,
+      });
+      setAssignments(assignments.map(a => (a.id === editing.id ? updated : a)));
+      setEditing(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save changes");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!editing) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await deleteAssignment(editing.id);
+      setAssignments(assignments.filter(a => a.id !== editing.id));
+      setEditing(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete assignment");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -76,7 +131,7 @@ export function StudentDashboard({ assignments, setAssignments }: StudentDashboa
         {filtered.map(a => {
           const r = getRewardStatus(a);
           return (
-            <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div key={a.id} onClick={() => openEdit(a)} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer active:opacity-80">
               <div className="flex items-stretch">
                 <div className={`w-1.5 ${getSubjectColor(a.subject)}`} />
                 <div className="flex-1 p-4">
@@ -114,6 +169,7 @@ export function StudentDashboard({ assignments, setAssignments }: StudentDashboa
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
           <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
             <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Add Assignment</h2><button onClick={() => setShowAddModal(false)} className="text-gray-400 text-xl">✕</button></div>
+            {error && <p className="text-sm text-red-500">{error}</p>}
             <input className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="Assignment title" value={newA.title} onChange={e => setNewA({ ...newA, title: e.target.value })} />
             <div className="grid grid-cols-2 gap-3">
               <select className="border border-gray-200 rounded-xl px-4 py-3 text-sm" value={newA.subject} onChange={e => setNewA({ ...newA, subject: e.target.value })}>{SUBJECTS.map(s => <option key={s}>{s}</option>)}</select>
@@ -124,7 +180,27 @@ export function StudentDashboard({ assignments, setAssignments }: StudentDashboa
               <input type="number" className="border border-gray-200 rounded-xl px-4 py-3 text-sm" placeholder="Grade % (optional)" value={newA.grade} onChange={e => setNewA({ ...newA, grade: e.target.value })} />
             </div>
             <select className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" value={newA.status} onChange={e => setNewA({ ...newA, status: e.target.value as NewAssignmentForm["status"] })}><option value="pending">Pending</option><option value="graded">Graded</option><option value="missing">Missing</option></select>
-            <button onClick={handleAdd} disabled={!newA.title || !newA.dueDate} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">Add Assignment</button>
+            <button onClick={handleAdd} disabled={!newA.title || !newA.dueDate || saving} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{saving ? "Saving…" : "Add Assignment"}</button>
+          </div>
+        </div>
+      )}
+      {editing && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
+          <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold">{editing.title}</h2>
+              <button onClick={() => setEditing(null)} className="text-gray-400 text-xl">✕</button>
+            </div>
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            <p className="text-xs text-gray-400">{editing.subject} • {editing.type.charAt(0).toUpperCase() + editing.type.slice(1)} • Due {editing.dueDate}</p>
+            <select className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" value={editStatus} onChange={e => setEditStatus(e.target.value as AssignmentStatus)}>
+              <option value="pending">Pending</option>
+              <option value="graded">Graded</option>
+              <option value="missing">Missing</option>
+            </select>
+            <input type="number" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" placeholder="Grade % (optional)" value={editGrade} onChange={e => setEditGrade(e.target.value)} />
+            <button onClick={handleSaveEdit} disabled={saving} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{saving ? "Saving…" : "Save Changes"}</button>
+            <button onClick={handleDelete} disabled={saving} className="w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm disabled:opacity-40">Delete Assignment</button>
           </div>
         </div>
       )}

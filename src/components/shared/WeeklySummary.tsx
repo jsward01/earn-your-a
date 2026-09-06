@@ -9,7 +9,8 @@ interface WeeklySummaryProps {
 }
 
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const TODAY = new Date(2026, 2, 10);
+const TODAY = new Date();
+TODAY.setHours(0, 0, 0, 0);
 
 function getPerformanceBadge(missingCount: number, avgGrade: number) {
   if (missingCount === 0 && avgGrade >= 90) return { emoji: "🏆", label: "Outstanding Week!", color: "text-yellow-600", bg: "bg-yellow-50 border-yellow-200" };

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { RewardSettings } from "../../types";
-import { fetchFamilyAccounts, resetUserPassword, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
+import { fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
 
 const DEFAULT_SETTINGS: RewardSettings = {
   assignmentReward: 3, testReward: 20, passingThreshold: 70,
@@ -41,14 +41,33 @@ export function ParentSettings() {
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [resetResult, setResetResult] = useState<PasswordResetResult | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   function update<K extends keyof RewardSettings>(key: K, val: RewardSettings[K]) {
     setSettings({ ...settings, [key]: val });
+    setSaved(false);
   }
 
   useEffect(() => {
     fetchFamilyAccounts().then(setAccounts).catch(err => console.error("Failed to load accounts", err));
+    fetchRewardSettings().then(setSettings).catch(err => console.error("Failed to load reward settings", err));
   }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const result = await saveRewardSettings(settings);
+      setSettings(result);
+      setSaved(true);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Failed to save settings");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function handleReset(userId: string) {
     setResettingId(userId);
@@ -135,7 +154,14 @@ export function ParentSettings() {
         ))}
       </div>
 
-      <button className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm shadow">Save Settings</button>
+      {saveError && <p className="text-sm text-red-500 text-center">{saveError}</p>}
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm shadow disabled:opacity-40"
+      >
+        {saving ? "Saving…" : saved ? "✓ Saved!" : "Save Settings"}
+      </button>
 
       {resetResult && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">

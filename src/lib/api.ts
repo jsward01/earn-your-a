@@ -1,4 +1,4 @@
-import type { AuthUser, Assignment, SavingsGoal } from "../types";
+import type { AuthUser, Assignment, RewardSettings, SavingsGoal } from "../types";
 import { fromApiRow, type AssignmentApiRow } from "./assignments";
 
 async function parseJsonOrThrow(res: Response): Promise<unknown> {
@@ -150,6 +150,20 @@ export async function saveSavingsGoal(goal: SavingsGoal): Promise<SavingsGoal> {
     body: JSON.stringify(goal),
   });
   return (await parseJsonOrThrow(res)) as SavingsGoal;
+}
+
+export async function fetchRewardSettings(): Promise<RewardSettings> {
+  const res = await fetch("/api/reward-settings");
+  return (await parseJsonOrThrow(res)) as RewardSettings;
+}
+
+export async function saveRewardSettings(settings: RewardSettings): Promise<RewardSettings> {
+  const res = await fetch("/api/reward-settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  return (await parseJsonOrThrow(res)) as RewardSettings;
 }
 
 export interface FamilyAccount {

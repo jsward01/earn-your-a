@@ -10,9 +10,9 @@ interface AppHeaderProps {
 export function AppHeader({ isParent, totalEarned, payoutPending, onLogout }: AppHeaderProps) {
   return (
     <div className={`${isParent ? "bg-emerald-700" : "bg-indigo-600"} text-white px-4 py-4 flex items-center justify-between shadow-lg`}>
-      <div>
-        <img src={logo} alt="Earn Your A" className="h-9 drop-shadow" />
-        <p className={`${isParent ? "text-emerald-200" : "text-indigo-200"} text-xs mt-1`}>
+      <div className="flex items-center gap-3">
+        <img src={logo} alt="Earn Your A" className="h-14 drop-shadow" />
+        <p className={`${isParent ? "text-emerald-200" : "text-indigo-200"} text-xs`}>
           {isParent ? "Parent Dashboard" : "Student Dashboard"}
           {payoutPending && isParent && <span className="ml-2 bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full text-xs font-bold">💸 Payout Pending</span>}
         </p>

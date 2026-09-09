@@ -76,7 +76,17 @@ Create a realistic day-by-day action plan to complete this assignment successful
       ],
     });
   } catch (err) {
-    console.error("AI assignment plan request failed", err);
+    const status = err instanceof Anthropic.APIError ? err.status : undefined;
+    const requestId = err instanceof Anthropic.APIError ? err.requestID : undefined;
+    const rawError = err instanceof Anthropic.APIError ? err.error : undefined;
+    console.error("AI assignment plan request failed", {
+      status,
+      requestId,
+      rawError,
+      keyPrefix: context.env.ANTHROPIC_API_KEY?.slice(0, 12),
+      keyLength: context.env.ANTHROPIC_API_KEY?.length,
+      message: err instanceof Error ? err.message : String(err),
+    });
     return json({ error: "Couldn't generate plan. Please try again." }, 502);
   }
 

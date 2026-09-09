@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { RewardSettings } from "../../types";
 import { fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
+import { ChangePasswordCard } from "../shared/ChangePasswordCard";
 
 const DEFAULT_SETTINGS: RewardSettings = {
   assignmentReward: 3, testReward: 20, passingThreshold: 70,
@@ -84,6 +85,8 @@ export function ParentSettings() {
 
   return (
     <div className="pb-4 px-4 pt-4 space-y-4">
+      <ChangePasswordCard />
+
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
         <p className="text-xs text-gray-400 font-medium">ACCOUNT ACCESS</p>
         {resetError && <p className="text-sm text-red-500">{resetError}</p>}

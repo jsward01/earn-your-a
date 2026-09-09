@@ -22,6 +22,7 @@ const STUDENT_NAVS: NavItem[] = [
   { id: "rewards", icon: "💰", label: "Rewards" },
   { id: "weekly", icon: "📊", label: "Weekly" },
   { id: "notifications", icon: "🔔", label: "Alerts" },
+  { id: "profile", icon: "👤", label: "Profile" },
 ];
 
 const PARENT_NAVS: NavItem[] = [
@@ -100,7 +101,7 @@ export default function App() {
         {view === "weekly" && <WeeklySummary assignments={assignments} isParent={isParent} studentName={studentName} />}
         {view === "notifications" && <NotificationCenter assignments={assignments} isParent={isParent} payoutPending={payoutPending} studentName={studentName} />}
         {!isParent && view === "ai" && <AIBreakdown />}
-        {!isParent && view === "profile" && <StudentProfile />}
+        {!isParent && view === "profile" && <StudentProfile name={user.name} />}
         {isParent && view === "dashboard" && <ParentOverview assignments={assignments} summary={summary} onChanged={refreshSummary} />}
         {isParent && view === "assignments" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} onChanged={refreshSummary} />}
         {isParent && view === "settings" && <ParentSettings />}

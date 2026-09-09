@@ -1,4 +1,4 @@
-import type { AuthUser, Assignment, RewardSettings, SavingsGoal } from "../types";
+import type { AuthUser, Assignment, AssignmentPlan, AssignmentPlanForm, RewardSettings, SavingsGoal } from "../types";
 import { fromApiRow, type AssignmentApiRow } from "./assignments";
 
 async function parseJsonOrThrow(res: Response): Promise<unknown> {
@@ -192,4 +192,13 @@ export async function resetUserPassword(userId: string): Promise<PasswordResetRe
     body: JSON.stringify({ userId }),
   });
   return (await parseJsonOrThrow(res)) as PasswordResetResult;
+}
+
+export async function generateAssignmentPlan(form: AssignmentPlanForm): Promise<AssignmentPlan> {
+  const res = await fetch("/api/ai/assignment-plan", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(form),
+  });
+  return (await parseJsonOrThrow(res)) as AssignmentPlan;
 }

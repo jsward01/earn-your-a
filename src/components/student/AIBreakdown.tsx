@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { AssignmentPlan, AssignmentPlanForm } from "../../types";
 import { SUBJECTS } from "../../data/mockData";
+import { generateAssignmentPlan } from "../../lib/api";
 
 type Step = "form" | "plan";
 
@@ -20,51 +21,11 @@ export function AIBreakdown() {
   const [form, setForm] = useState<AssignmentPlanForm>(EMPTY_FORM);
   const [checkedSteps, setCheckedSteps] = useState<Record<number, boolean>>({});
 
-  // NOTE: calls api.anthropic.com directly from the browser with no key —
-  // this needs a real backend proxy route before it can work outside the
-  // Claude.ai artifact sandbox (see project TODO: AI task breakdown).
   async function generatePlan() {
     setLoading(true);
     setError(null);
     try {
-      const today = new Date().toISOString().split("T")[0];
-      const prompt = `You are an academic coach helping a high school student break down a big assignment into a manageable step-by-step plan.
-
-Assignment: "${form.title}"
-Subject: ${form.subject}
-Type: ${form.type}
-Due Date: ${form.dueDate}
-Today's Date: ${today}
-Extra details: ${form.details || "None"}
-
-Create a realistic day-by-day action plan to complete this assignment successfully.
-Respond ONLY with a valid JSON object in this exact format, no extra text, no markdown:
-{
-  "summary": "One sentence overview of the approach",
-  "estimatedHours": 4,
-  "steps": [
-    {
-      "day": "Monday, Mar 11",
-      "task": "What to do this day",
-      "duration": "30 min",
-      "tip": "A helpful tip for this step"
-    }
-  ]
-}`;
-
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-      const data = await res.json();
-      const text = data.content.map((b: { text?: string }) => b.text || "").join("");
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed: AssignmentPlan = JSON.parse(clean);
+      const parsed = await generateAssignmentPlan(form);
       setPlan(parsed);
       setCheckedSteps({});
       setStep("plan");

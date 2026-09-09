@@ -1,4 +1,5 @@
 import type { Assignment, AppNotification, NotificationTypeKey, NotificationTypeMeta } from "../types";
+import { getRewardStatus } from "./rewards";
 
 export const NOTIFICATION_TYPES: Record<NotificationTypeKey, NotificationTypeMeta> = {
   due3days: { icon: "📅", color: "bg-indigo-50 border-indigo-200", badge: "bg-indigo-100 text-indigo-700", label: "Due Soon" },
@@ -14,6 +15,8 @@ export function generateNotifications(
   assignments: Assignment[],
   isParent: boolean,
   payoutPending: boolean,
+  studentName: string,
+  pendingPayoutAmount: number | null,
 ): AppNotification[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -65,19 +68,25 @@ export function generateNotifications(
   });
 
   if (payoutPending) {
+    const amountText = pendingPayoutAmount !== null ? `$${pendingPayoutAmount.toFixed(2)}` : "a payout";
     notes.push({
       id: "payout-pending", type: "payout", read: false, time: "Just now",
-      title: isParent ? "Payout Request from Sarah" : "Payout Request Sent!",
+      title: isParent ? `Payout Request from ${studentName}` : "Payout Request Sent!",
       body: isParent
-        ? "Sarah has requested a payout of $3.00. Tap to review and approve, delay, or deny."
-        : "Your payout request of $3.00 is waiting for parent approval.",
+        ? `${studentName} has requested a payout of ${amountText}. Tap to review and approve, delay, or deny.`
+        : `Your payout request of ${amountText} is waiting for parent approval.`,
     });
   }
+
+  const graded = assignments.filter(a => a.status === "graded" && a.grade !== null);
+  const avgGrade = graded.length ? Math.round(graded.reduce((s, a) => s + (a.grade ?? 0), 0) / graded.length) : 0;
+  const netEarnings = assignments.reduce((s, a) => s + (getRewardStatus(a).earned ?? 0), 0);
+  const openMakeups = assignments.filter(a => a.makeupAvailable && (a.daysLeft ?? 0) > 0).length;
 
   notes.push({
     id: "weekly-summary", type: "weekly", read: true, time: "Last Sunday",
     title: "Weekly Summary Ready",
-    body: "Your week in review is ready. Net earnings: $23 • Avg grade: 80% • 1 makeup window open.",
+    body: `Your week in review is ready. Net earnings: $${netEarnings} • Avg grade: ${avgGrade}% • ${openMakeups} makeup window${openMakeups === 1 ? "" : "s"} open.`,
   });
 
   return notes.sort((a, b) => (a.read === b.read ? 0 : a.read ? 1 : -1));

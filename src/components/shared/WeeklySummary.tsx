@@ -1,16 +1,16 @@
+import { useEffect, useState } from "react";
 import type { Assignment } from "../../types";
-import { getRewardStatus } from "../../lib/rewards";
 import { getSubjectLight } from "../../lib/styles";
 import { SUBJECTS } from "../../data/mockData";
+import { fetchRewardTransactions, type RewardTransaction } from "../../lib/api";
 
 interface WeeklySummaryProps {
   assignments: Assignment[];
   isParent: boolean;
+  studentName: string;
 }
 
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const TODAY = new Date();
-TODAY.setHours(0, 0, 0, 0);
 
 function getPerformanceBadge(missingCount: number, avgGrade: number) {
   if (missingCount === 0 && avgGrade >= 90) return { emoji: "🏆", label: "Outstanding Week!", color: "text-yellow-600", bg: "bg-yellow-50 border-yellow-200" };
@@ -20,24 +20,40 @@ function getPerformanceBadge(missingCount: number, avgGrade: number) {
   return { emoji: "🚨", label: "Needs Attention", color: "text-red-600", bg: "bg-red-50 border-red-200" };
 }
 
-export function WeeklySummary({ assignments, isParent }: WeeklySummaryProps) {
+export function WeeklySummary({ assignments, isParent, studentName }: WeeklySummaryProps) {
   const accentBg = isParent ? "bg-emerald-700" : "bg-indigo-600";
   const accentLight = isParent ? "bg-emerald-50 text-emerald-700" : "bg-indigo-50 text-indigo-700";
+
+  const [transactions, setTransactions] = useState<RewardTransaction[]>([]);
+
+  useEffect(() => {
+    fetchRewardTransactions().then(setTransactions).catch(err => console.error("Failed to load transactions", err));
+  }, []);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const weekStart = new Date(today);
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  weekEnd.setHours(23, 59, 59, 999);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
   const graded = assignments.filter(a => a.status === "graded" && a.grade !== null);
   const avgGrade = graded.length ? Math.round(graded.reduce((s, a) => s + (a.grade ?? 0), 0) / graded.length) : 0;
   const missing = assignments.filter(a => a.status === "missing");
   const makeupOpen = assignments.filter(a => a.makeupAvailable && (a.daysLeft ?? 0) > 0);
 
-  const weekEarned = assignments.reduce((s, a) => {
-    const r = getRewardStatus(a);
-    return s + (r.earned && r.earned > 0 ? r.earned : 0);
-  }, 0);
-  const weekLost = assignments.reduce((s, a) => {
-    const r = getRewardStatus(a);
-    return s + (r.earned && r.earned < 0 ? Math.abs(r.earned) : 0);
-  }, 0);
+  const assignmentTx = transactions.filter(t => t.subject !== null);
+  const thisWeekTx = assignmentTx.filter(t => {
+    const d = new Date(t.createdAt);
+    return d >= weekStart && d <= weekEnd;
+  });
+  const weekEarned = thisWeekTx.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
+  const weekLost = thisWeekTx.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
   const weekNet = weekEarned - weekLost;
+  const monthlyTotal = assignmentTx.filter(t => new Date(t.createdAt) >= monthStart).reduce((s, t) => s + t.amount, 0);
 
   const subjectStats = SUBJECTS.map(sub => {
     const subs = assignments.filter(a => a.subject === sub && a.grade !== null);
@@ -48,7 +64,7 @@ export function WeeklySummary({ assignments, isParent }: WeeklySummaryProps) {
 
   const nextWeek = assignments.filter(a => {
     const d = new Date(a.dueDate);
-    const diff = Math.ceil((d.getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24));
+    const diff = Math.ceil((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     return diff >= 0 && diff <= 7;
   }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
@@ -73,11 +89,13 @@ export function WeeklySummary({ assignments, isParent }: WeeklySummaryProps) {
         <div className="flex items-center justify-between mb-1">
           <div>
             <p className="text-xs opacity-70 font-semibold uppercase tracking-wide">Earn Your A</p>
-            <p className="text-xl font-bold mt-0.5">Mar 3 – Mar 9, 2026</p>
+            <p className="text-xl font-bold mt-0.5">
+              {MONTH_ABBR[weekStart.getMonth()]} {weekStart.getDate()} – {MONTH_ABBR[weekEnd.getMonth()]} {weekEnd.getDate()}, {weekEnd.getFullYear()}
+            </p>
           </div>
           <div className="text-4xl">📋</div>
         </div>
-        <p className="text-xs opacity-60 mt-1">Generated Sunday evening • Next summary in 6 days</p>
+        <p className="text-xs opacity-60 mt-1">Live totals for the current week</p>
       </div>
 
       <div className={`rounded-2xl border p-4 flex items-center gap-4 ${badge.bg}`}>
@@ -109,7 +127,7 @@ export function WeeklySummary({ assignments, isParent }: WeeklySummaryProps) {
         </div>
         <div className="border-t border-gray-100 px-4 py-3 flex items-center justify-between bg-gray-50">
           <p className="text-sm text-gray-500">Running Monthly Total</p>
-          <p className="font-bold text-gray-800">$23.00</p>
+          <p className="font-bold text-gray-800">${monthlyTotal.toFixed(2)}</p>
         </div>
       </div>
 
@@ -199,7 +217,7 @@ export function WeeklySummary({ assignments, isParent }: WeeklySummaryProps) {
           ? <p className="text-sm text-gray-400 px-4 pb-4 text-center">Nothing due next week 🎉</p>
           : <div className="divide-y divide-gray-50">
             {nextWeek.map(a => {
-              const daysAway = Math.ceil((new Date(a.dueDate).getTime() - TODAY.getTime()) / (1000 * 60 * 60 * 24));
+              const daysAway = Math.ceil((new Date(a.dueDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
               return (
                 <div key={a.id} className="flex items-center gap-3 px-4 py-3">
                   <div className={`w-9 h-9 rounded-xl flex flex-col items-center justify-center shrink-0 ${daysAway <= 2 ? "bg-red-100" : daysAway <= 4 ? "bg-yellow-100" : "bg-gray-100"}`}>
@@ -233,10 +251,10 @@ export function WeeklySummary({ assignments, isParent }: WeeklySummaryProps) {
           <span className="ml-auto text-xs bg-gray-600 text-gray-300 px-2 py-0.5 rounded-full">9:00 PM</span>
         </div>
         <div className="bg-gray-700 rounded-xl p-3 space-y-1">
-          <p className="text-white text-sm font-semibold">📚 ScholarRewards Weekly Summary</p>
+          <p className="text-white text-sm font-semibold">📚 Earn Your A Weekly Summary</p>
           <p className="text-gray-300 text-xs">
             {isParent
-              ? `Sarah earned ${weekNet} this week • Avg grade: ${avgGrade}% • ${missing.length} missing • ${makeupOpen.length} makeup windows open`
+              ? `${studentName} earned ${weekNet} this week • Avg grade: ${avgGrade}% • ${missing.length} missing • ${makeupOpen.length} makeup windows open`
               : `You earned ${weekNet} this week! Avg: ${avgGrade}% • ${nextWeek.length} assignments due next week • ${makeupOpen.length} makeup windows still open`
             }
           </p>

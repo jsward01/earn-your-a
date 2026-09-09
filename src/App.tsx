@@ -62,6 +62,7 @@ export default function App() {
 
   const totalEarned = summary?.balance ?? 0;
   const payoutPending = summary?.payoutPending ?? false;
+  const studentName = summary?.studentName ?? "your student";
 
   if (checkingSession) {
     return <div className="min-h-screen bg-gray-50" />;
@@ -96,8 +97,8 @@ export default function App() {
         {!isParent && view === "rewards" && <StudentRewards summary={summary} onChanged={refreshSummary} />}
         {view === "messages" && <MessagesScreen isParent={isParent} />}
         {view === "calendar" && <CalendarView assignments={assignments} isParent={isParent} />}
-        {view === "weekly" && <WeeklySummary assignments={assignments} isParent={isParent} />}
-        {view === "notifications" && <NotificationCenter assignments={assignments} isParent={isParent} payoutPending={payoutPending} />}
+        {view === "weekly" && <WeeklySummary assignments={assignments} isParent={isParent} studentName={studentName} />}
+        {view === "notifications" && <NotificationCenter assignments={assignments} isParent={isParent} payoutPending={payoutPending} studentName={studentName} />}
         {!isParent && view === "ai" && <AIBreakdown />}
         {!isParent && view === "profile" && <StudentProfile />}
         {isParent && view === "dashboard" && <ParentOverview assignments={assignments} summary={summary} onChanged={refreshSummary} />}

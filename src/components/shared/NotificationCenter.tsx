@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Assignment, AppNotification, NotificationSettings } from "../../types";
 import { NOTIFICATION_TYPES, generateNotifications } from "../../lib/notifications";
+import { fetchPayouts } from "../../lib/api";
 
 interface NotificationCenterProps {
   assignments: Assignment[];
   isParent: boolean;
   payoutPending: boolean;
+  studentName: string;
 }
 
 const FILTER_TABS = ["all", "unread", "due1day", "dueToday", "makeup", "payout", "grade"] as const;
@@ -20,11 +22,30 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   quietEnd: "07:00 AM",
 };
 
-export function NotificationCenter({ assignments, isParent, payoutPending }: NotificationCenterProps) {
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => generateNotifications(assignments, isParent, payoutPending));
+export function NotificationCenter({ assignments, isParent, payoutPending, studentName }: NotificationCenterProps) {
+  const [notifications, setNotifications] = useState<AppNotification[]>(() =>
+    generateNotifications(assignments, isParent, payoutPending, studentName, null),
+  );
   const [filter, setFilter] = useState<string>("all");
   const [showSettings, setShowSettings] = useState(false);
   const [notifSettings, setNotifSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    if (!payoutPending) return;
+    fetchPayouts()
+      .then(payouts => {
+        const amount = payouts.find(p => p.status === "pending")?.amount ?? null;
+        if (amount === null) return;
+        const amountText = `$${amount.toFixed(2)}`;
+        setNotifications(prev => prev.map(n => n.id !== "payout-pending" ? n : {
+          ...n,
+          body: isParent
+            ? `${studentName} has requested a payout of ${amountText}. Tap to review and approve, delay, or deny.`
+            : `Your payout request of ${amountText} is waiting for parent approval.`,
+        }));
+      })
+      .catch(err => console.error("Failed to load payouts", err));
+  }, [payoutPending, isParent, studentName]);
 
   const accentBg = isParent ? "bg-emerald-700" : "bg-indigo-600";
 
@@ -216,7 +237,7 @@ export function NotificationCenter({ assignments, isParent, payoutPending }: Not
           <div className="bg-gray-800 rounded-xl p-3 space-y-2">
             <div className="flex justify-end">
               <div className="bg-green-500 text-white text-xs rounded-2xl rounded-br-sm px-3 py-2 max-w-xs">
-                📚 ScholarRewards: ⚠️ Algebra Test due TOMORROW! Complete it to earn $20. Good luck! 💪
+                📚 Earn Your A: ⚠️ Algebra Test due TOMORROW! Complete it to earn $20. Good luck! 💪
               </div>
             </div>
             <div className="flex justify-end">
@@ -235,13 +256,13 @@ export function NotificationCenter({ assignments, isParent, payoutPending }: Not
             <span className="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Via Resend</span>
           </div>
           <div className="px-4 py-3 space-y-1 text-xs text-gray-500 border-b border-gray-100">
-            <p><span className="font-semibold text-gray-700">From:</span> ScholarRewards &lt;alerts@scholarrewards.app&gt;</p>
+            <p><span className="font-semibold text-gray-700">From:</span> Earn Your A &lt;alerts@earnyoura.com&gt;</p>
             <p><span className="font-semibold text-gray-700">To:</span> {isParent ? "parent@example.com" : "sarah@example.com"}</p>
             <p><span className="font-semibold text-gray-700">Subject:</span> 📚 Weekly Summary — Net +$23 this week</p>
           </div>
           <div className="px-4 py-4 space-y-3">
             <div className="bg-indigo-600 rounded-xl p-3 text-white text-center">
-              <p className="text-xs opacity-70">📚 ScholarRewards</p>
+              <p className="text-xs opacity-70">📚 Earn Your A</p>
               <p className="font-bold text-base mt-1">Weekly Summary</p>
               <p className="text-xs opacity-80">Mar 3 – Mar 9, 2026</p>
             </div>

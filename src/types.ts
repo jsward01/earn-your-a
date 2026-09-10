@@ -76,6 +76,7 @@ export interface AuthUser {
   role: Role;
   name: string;
   email: string;
+  isAdmin: boolean;
 }
 
 export type View =

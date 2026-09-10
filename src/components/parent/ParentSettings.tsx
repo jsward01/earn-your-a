@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
-import type { RewardSettings } from "../../types";
-import { fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
+import type { AuthUser, RewardSettings } from "../../types";
+import { addParentAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
+
+interface ParentSettingsProps {
+  user: AuthUser;
+}
 
 const DEFAULT_SETTINGS: RewardSettings = {
   assignmentReward: 3, testReward: 20, passingThreshold: 70,
@@ -36,7 +40,7 @@ const PAYOUT_SCHEDULES: { val: RewardSettings["payoutSchedule"]; label: string }
   { val: "manual", label: "Parent Initiated Only" },
 ];
 
-export function ParentSettings() {
+export function ParentSettings({ user }: ParentSettingsProps) {
   const [settings, setSettings] = useState<RewardSettings>(DEFAULT_SETTINGS);
   const [accounts, setAccounts] = useState<FamilyAccount[]>([]);
   const [resettingId, setResettingId] = useState<string | null>(null);
@@ -45,16 +49,43 @@ export function ParentSettings() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [showAddParent, setShowAddParent] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addEmail, setAddEmail] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [addResult, setAddResult] = useState<PasswordResetResult | null>(null);
 
   function update<K extends keyof RewardSettings>(key: K, val: RewardSettings[K]) {
     setSettings({ ...settings, [key]: val });
     setSaved(false);
   }
 
-  useEffect(() => {
+  function loadAccounts() {
     fetchFamilyAccounts().then(setAccounts).catch(err => console.error("Failed to load accounts", err));
+  }
+
+  useEffect(() => {
+    loadAccounts();
     fetchRewardSettings().then(setSettings).catch(err => console.error("Failed to load reward settings", err));
   }, []);
+
+  async function handleAddParent() {
+    setAdding(true);
+    setAddError(null);
+    try {
+      const result = await addParentAccount(addName.trim(), addEmail.trim());
+      setAddResult(result);
+      setAddName("");
+      setAddEmail("");
+      setShowAddParent(false);
+      loadAccounts();
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : "Failed to add parent account");
+    } finally {
+      setAdding(false);
+    }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -90,21 +121,37 @@ export function ParentSettings() {
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
         <p className="text-xs text-gray-400 font-medium">ACCOUNT ACCESS</p>
         {resetError && <p className="text-sm text-red-500">{resetError}</p>}
-        {accounts.map(a => (
-          <div key={a.id} className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-700">{a.name} <span className="text-xs text-gray-400 capitalize">({a.role})</span></p>
-              <p className="text-xs text-gray-400">{a.email}</p>
+        {accounts.map(a => {
+          const canReset = a.id !== user.id && (a.role === "student" || user.isAdmin);
+          return (
+            <div key={a.id} className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-700">
+                  {a.name} <span className="text-xs text-gray-400 capitalize">({a.role})</span>
+                  {a.isAdmin && <span className="ml-1 text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold">Admin</span>}
+                </p>
+                <p className="text-xs text-gray-400">{a.email}</p>
+              </div>
+              {canReset && (
+                <button
+                  onClick={() => handleReset(a.id)}
+                  disabled={resettingId === a.id}
+                  className="text-xs bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg font-medium disabled:opacity-40"
+                >
+                  {resettingId === a.id ? "Resetting…" : "Reset Password"}
+                </button>
+              )}
             </div>
-            <button
-              onClick={() => handleReset(a.id)}
-              disabled={resettingId === a.id}
-              className="text-xs bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg font-medium disabled:opacity-40"
-            >
-              {resettingId === a.id ? "Resetting…" : "Reset Password"}
-            </button>
-          </div>
-        ))}
+          );
+        })}
+        {user.isAdmin && (
+          <button
+            onClick={() => { setShowAddParent(true); setAddError(null); }}
+            className="w-full text-sm text-indigo-600 font-medium border border-dashed border-indigo-200 rounded-xl py-2.5 mt-1"
+          >
+            + Add Parent Account
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
@@ -179,6 +226,57 @@ export function ParentSettings() {
             </div>
             <button
               onClick={() => setResetResult(null)}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showAddParent && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
+          <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
+            <h2 className="text-lg font-bold text-gray-800">Add Parent Account</h2>
+            {addError && <p className="text-sm text-red-500">{addError}</p>}
+            <input
+              placeholder="Name"
+              value={addName}
+              onChange={e => setAddName(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+            <input
+              type="email"
+              placeholder="Email"
+              value={addEmail}
+              onChange={e => setAddEmail(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+            <button
+              onClick={handleAddParent}
+              disabled={adding || !addName.trim() || !addEmail.trim()}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40"
+            >
+              {adding ? "Adding…" : "Add Parent"}
+            </button>
+            <button onClick={() => setShowAddParent(false)} className="w-full text-gray-400 text-sm">Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {addResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
+          <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
+            <h2 className="text-lg font-bold text-gray-800">Parent Account Created</h2>
+            <p className="text-sm text-gray-500">
+              Temporary password for <span className="font-semibold">{addResult.name}</span> ({addResult.email}).
+              Write it down now — it won't be shown again. They should log in and set their own password from Settings.
+            </p>
+            <div className="bg-indigo-50 rounded-2xl p-4 text-center">
+              <p className="text-2xl font-bold text-indigo-700 tracking-wide font-mono">{addResult.password}</p>
+            </div>
+            <button
+              onClick={() => setAddResult(null)}
               className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm"
             >
               Done

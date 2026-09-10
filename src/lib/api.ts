@@ -171,6 +171,7 @@ export interface FamilyAccount {
   name: string;
   role: "parent" | "student";
   email: string;
+  isAdmin: boolean;
 }
 
 export async function fetchFamilyAccounts(): Promise<FamilyAccount[]> {
@@ -190,6 +191,15 @@ export async function resetUserPassword(userId: string): Promise<PasswordResetRe
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ userId }),
+  });
+  return (await parseJsonOrThrow(res)) as PasswordResetResult;
+}
+
+export async function addParentAccount(name: string, email: string): Promise<PasswordResetResult> {
+  const res = await fetch("/api/users", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, email }),
   });
   return (await parseJsonOrThrow(res)) as PasswordResetResult;
 }

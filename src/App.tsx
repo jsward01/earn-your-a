@@ -104,7 +104,7 @@ export default function App() {
         {!isParent && view === "profile" && <StudentProfile name={user.name} />}
         {isParent && view === "dashboard" && <ParentOverview assignments={assignments} summary={summary} onChanged={refreshSummary} />}
         {isParent && view === "assignments" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} onChanged={refreshSummary} />}
-        {isParent && view === "settings" && <ParentSettings />}
+        {isParent && view === "settings" && <ParentSettings user={user} />}
       </div>
 
       <BottomNav navs={navs} view={view} isParent={isParent} payoutPending={payoutPending} onSelect={setView} />

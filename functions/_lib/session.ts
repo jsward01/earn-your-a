@@ -7,6 +7,7 @@ export interface SessionUser {
   role: "parent" | "student";
   name: string;
   email: string;
+  isAdmin: boolean;
 }
 
 export async function createSession(db: D1Database, userId: string): Promise<{ id: string; expiresAt: string }> {
@@ -41,6 +42,7 @@ interface SessionRow {
   role: "parent" | "student";
   name: string;
   email: string;
+  is_admin: number;
 }
 
 export async function getSessionUser(db: D1Database, request: Request): Promise<SessionUser | null> {
@@ -49,7 +51,7 @@ export async function getSessionUser(db: D1Database, request: Request): Promise<
 
   const row = await db
     .prepare(
-      `SELECT u.id, u.family_id, u.role, u.name, u.email
+      `SELECT u.id, u.family_id, u.role, u.name, u.email, u.is_admin
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.id = ? AND s.expires_at > datetime('now')`,
     )
@@ -57,5 +59,5 @@ export async function getSessionUser(db: D1Database, request: Request): Promise<
     .first<SessionRow>();
 
   if (!row) return null;
-  return { id: row.id, familyId: row.family_id, role: row.role, name: row.name, email: row.email };
+  return { id: row.id, familyId: row.family_id, role: row.role, name: row.name, email: row.email, isAdmin: !!row.is_admin };
 }

@@ -26,10 +26,13 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (!userId) return json({ error: "userId is required" }, 400);
 
   const target = await context.env.DB
-    .prepare("SELECT id, name, email FROM users WHERE id = ? AND family_id = ?")
+    .prepare("SELECT id, name, email, role FROM users WHERE id = ? AND family_id = ?")
     .bind(userId, sessionUser.familyId)
-    .first<{ id: string; name: string; email: string }>();
+    .first<{ id: string; name: string; email: string; role: "parent" | "student" }>();
   if (!target) return json({ error: "Not found" }, 404);
+  if (target.role === "parent" && !sessionUser.isAdmin) {
+    return json({ error: "Only the family admin can reset another parent's password" }, 403);
+  }
 
   const tempPassword = generateTempPassword();
   const hash = await hashPassword(tempPassword);

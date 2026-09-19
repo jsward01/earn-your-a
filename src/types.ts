@@ -106,6 +106,8 @@ export interface RewardSettings {
   makeupWindow: number;
   holdback: number;
   rewardType: RewardType;
+  /** The family's own word for the reward when rewardType is "custom" (blank shows "units"). */
+  customUnit: string;
   excellenceBonus: boolean;
   streakBonus: boolean;
   payoutSchedule: PayoutSchedule;

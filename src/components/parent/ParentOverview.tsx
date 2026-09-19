@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import type { Assignment, PayoutAction } from "../../types";
 import { getSubjectColor, getSubjectLight, getDaysLeftColor } from "../../lib/styles";
 import { fetchPayouts, resolvePayout, type PayoutRequestRow, type RewardSummary } from "../../lib/api";
-import { formatMoney, rewardAmountFor } from "../../lib/rewards";
-import { useRewardSettings } from "../../lib/rewardSettingsContext";
+import { rewardAmountFor } from "../../lib/rewards";
+import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 
 interface ParentOverviewProps {
   assignments: Assignment[];
@@ -30,6 +30,7 @@ function getDueSoonLabel(date: string): { text: string; color: string } {
 
 export function ParentOverview({ assignments, summary, onChanged, onEdit }: ParentOverviewProps) {
   const rules = useRewardSettings();
+  const fmt = useFormatAmount();
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [payoutAction, setPayoutAction] = useState<PayoutAction | null>(null);
   const [payouts, setPayouts] = useState<PayoutRequestRow[]>([]);
@@ -73,7 +74,7 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit }: Pare
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xl">💸</span>
-            <div><p className="font-bold text-yellow-800">Payout Request from {summary?.studentName ?? "your student"}</p><p className="text-xs text-yellow-600">Requesting ${pending.amount.toFixed(2)} • Submitted {new Date(pending.requestedAt).toLocaleString()}</p></div>
+            <div><p className="font-bold text-yellow-800">Payout Request from {summary?.studentName ?? "your student"}</p><p className="text-xs text-yellow-600">Requesting {fmt(pending.amount)} • Submitted {new Date(pending.requestedAt).toLocaleString()}</p></div>
           </div>
           <div className="flex gap-2">
             <button onClick={() => { setPayoutAction("approve"); setShowPayoutModal(true); }} className="flex-1 bg-green-500 text-white py-2 rounded-xl text-sm font-bold">✅ Approve</button>
@@ -125,7 +126,7 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit }: Pare
                   </div>
                   <div className="text-right shrink-0 ml-2">
                     <p className={`text-xs ${due.color}`}>{due.text}</p>
-                    <p className="text-xs text-indigo-500 font-semibold mt-0.5">{formatMoney(rewardAmountFor(a.type, rules))} potential</p>
+                    <p className="text-xs text-indigo-500 font-semibold mt-0.5">{fmt(rewardAmountFor(a.type, rules), { short: true })} potential</p>
                   </div>
                 </div>
               );
@@ -159,8 +160,8 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit }: Pare
                   </div>
                 </div>
                 <div className="text-right shrink-0 ml-2">
-                  <p className="text-xs text-red-500 font-bold">$0.00</p>
-                  <p className="text-xs text-gray-400">was {formatMoney(rewardAmountFor(a.type, rules))}</p>
+                  <p className="text-xs text-red-500 font-bold">{fmt(0)}</p>
+                  <p className="text-xs text-gray-400">was {fmt(rewardAmountFor(a.type, rules), { short: true })}</p>
                 </div>
               </div>
             ))}
@@ -215,8 +216,8 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit }: Pare
             {payoutAction === "approve" && <>
               <h2 className="text-lg font-bold text-gray-800">✅ Approve Payout</h2>
               <div className="bg-green-50 rounded-2xl p-4">
-                <div className="flex justify-between text-sm mb-2"><span>Amount</span><span className="font-bold text-green-600">${pending.amount.toFixed(2)}</span></div>
-                <div className="flex justify-between text-sm"><span>Holdback retained</span><span className="font-bold">${pending.holdbackAmount.toFixed(2)}</span></div>
+                <div className="flex justify-between text-sm mb-2"><span>Amount</span><span className="font-bold text-green-600">{fmt(pending.amount)}</span></div>
+                <div className="flex justify-between text-sm"><span>Holdback retained</span><span className="font-bold">{fmt(pending.holdbackAmount)}</span></div>
               </div>
               <button onClick={() => handleResolve("approve")} disabled={resolving} className="w-full bg-green-500 text-white py-3 rounded-xl font-semibold disabled:opacity-40">{resolving ? "Confirming…" : "Confirm Approval"}</button>
             </>}

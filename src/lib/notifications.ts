@@ -1,5 +1,5 @@
 import type { Assignment, AppNotification, NotificationTypeKey, NotificationTypeMeta } from "../types";
-import { formatMoney, getRewardStatus, rewardAmountFor, type RewardRules } from "./rewards";
+import { formatAmount, getRewardStatus, rewardAmountFor, type RewardRules } from "./rewards";
 
 export const NOTIFICATION_TYPES: Record<NotificationTypeKey, NotificationTypeMeta> = {
   due3days: { icon: "📅", color: "bg-indigo-50 border-indigo-200", badge: "bg-indigo-100 text-indigo-700", label: "Due Soon" },
@@ -26,7 +26,7 @@ export function generateNotifications(
   assignments.forEach(a => {
     if (a.status === "pending" && a.dueDate) {
       const days = Math.ceil((new Date(a.dueDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      const reward = formatMoney(rewardAmountFor(a.type, rules));
+      const reward = formatAmount(rewardAmountFor(a.type, rules), rules, { short: true });
       if (days === 0) {
         notes.push({
           id: `dueToday-${a.id}`, type: "dueToday", read: false, time: "Today",
@@ -54,7 +54,7 @@ export function generateNotifications(
       notes.push({
         id: `makeup-${a.id}`, type: "makeup", read: a.daysLeft > 3, time: `${a.daysLeft} days left`,
         title: `Makeup Window: ${a.title}`,
-        body: `You have ${a.daysLeft} day${a.daysLeft !== 1 ? "s" : ""} left to retake this ${a.subject} ${a.type} and earn back ${formatMoney(rewardAmountFor(a.type, rules))}. Don't miss it!`,
+        body: `You have ${a.daysLeft} day${a.daysLeft !== 1 ? "s" : ""} left to retake this ${a.subject} ${a.type} and earn back ${formatAmount(rewardAmountFor(a.type, rules), rules, { short: true })}. Don't miss it!`,
         subject: a.subject,
       });
     }
@@ -69,7 +69,7 @@ export function generateNotifications(
   });
 
   if (payoutPending) {
-    const amountText = pendingPayoutAmount !== null ? `$${pendingPayoutAmount.toFixed(2)}` : "a payout";
+    const amountText = pendingPayoutAmount !== null ? formatAmount(pendingPayoutAmount, rules) : "a payout";
     notes.push({
       id: "payout-pending", type: "payout", read: false, time: "Just now",
       title: isParent ? `Payout Request from ${studentName}` : "Payout Request Sent!",
@@ -87,7 +87,7 @@ export function generateNotifications(
   notes.push({
     id: "weekly-summary", type: "weekly", read: true, time: "Last Sunday",
     title: "Weekly Summary Ready",
-    body: `Your week in review is ready. Net earnings: $${netEarnings} • Avg grade: ${avgGrade}% • ${openMakeups} makeup window${openMakeups === 1 ? "" : "s"} open.`,
+    body: `Your week in review is ready. Net earnings: ${formatAmount(netEarnings, rules, { short: true })} • Avg grade: ${avgGrade}% • ${openMakeups} makeup window${openMakeups === 1 ? "" : "s"} open.`,
   });
 
   return notes.sort((a, b) => (a.read === b.read ? 0 : a.read ? 1 : -1));

@@ -1,5 +1,6 @@
 import logo from "../assets/logo.png";
 import { Avatar } from "./shared/Avatar";
+import { useFormatAmount } from "../lib/rewardSettingsContext";
 
 export interface StudentOption {
   id: string;
@@ -20,6 +21,7 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ isParent, totalEarned, viewedStudent, payoutPending, students, selectedStudentId, onSelectStudent, onBalanceClick, onLogout }: AppHeaderProps) {
+  const fmt = useFormatAmount();
   const showSwitcher = isParent && students.length > 1;
   const selected = students.find(s => s.id === selectedStudentId);
 
@@ -57,7 +59,7 @@ export function AppHeader({ isParent, totalEarned, viewedStudent, payoutPending,
           <p className={`${isParent ? "text-emerald-300" : "text-indigo-300"} text-xs`}>
             {showSwitcher && selected ? `${selected.name.split(" ")[0]}'s Balance` : "Balance"} ›
           </p>
-          <p className={`text-lg font-bold ${totalEarned >= 0 ? "text-green-300" : "text-red-300"}`}>${totalEarned.toFixed(2)}</p>
+          <p className={`text-lg font-bold ${totalEarned >= 0 ? "text-green-300" : "text-red-300"}`}>{fmt(totalEarned)}</p>
         </button>
         <button onClick={onLogout}
           className={`${isParent ? "bg-emerald-600" : "bg-indigo-500"} rounded-xl px-3 py-2 text-xs font-medium`}>

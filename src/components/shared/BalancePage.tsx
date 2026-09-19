@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import type { Assignment } from "../../types";
 import { fetchPayouts, type PayoutRequestRow, type RewardSummary } from "../../lib/api";
 import { getRewardStatus } from "../../lib/rewards";
-import { useRewardSettings } from "../../lib/rewardSettingsContext";
-import { plainMoney, shortDate, signedMoney } from "../../lib/money";
+import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
+import { shortDate } from "../../lib/dates";
 import { getSubjectLight } from "../../lib/styles";
 
 interface BalancePageProps {
@@ -23,6 +23,8 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, onAdd }: BalancePageProps) {
   const rules = useRewardSettings();
+  const fmt = useFormatAmount();
+  const signed = (n: number) => fmt(n, { signed: true });
   const [tab, setTab] = useState<Tab>("current");
   const [payouts, setPayouts] = useState<PayoutRequestRow[]>([]);
 
@@ -66,7 +68,7 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
         </div>
         <div className="text-right shrink-0">
           <p className={`text-sm font-bold ${r.color}`}>{r.label}</p>
-          <p className="text-xs text-gray-400">{a.status === "missing" ? "$0.00" : a.grade !== null ? `${a.grade}%` : "—"}</p>
+          <p className="text-xs text-gray-400">{a.status === "missing" ? fmt(0) : a.grade !== null ? `${a.grade}%` : "—"}</p>
         </div>
       </div>
     );
@@ -84,7 +86,7 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
         <p className="text-xs text-gray-400 font-medium">{summary?.studentName ? `${summary.studentName.toUpperCase()}'S BALANCE` : "BALANCE"}</p>
-        <p className={`text-3xl font-bold ${balance >= 0 ? "text-green-600" : "text-red-500"}`}>{plainMoney(balance)}</p>
+        <p className={`text-3xl font-bold ${balance >= 0 ? "text-green-600" : "text-red-500"}`}>{fmt(balance)}</p>
         <p className="text-xs text-gray-400 mt-1">
           {readOnly
             ? "Grades stay open until they're paid out. If something looks wrong, ask a parent."
@@ -109,7 +111,7 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
                 <p className="text-sm font-semibold text-gray-700">Carried over</p>
                 <p className="text-xs text-gray-400">Earned in earlier periods, not paid out yet (the holdback)</p>
               </div>
-              <p className={`text-sm font-bold ${carriedOver >= 0 ? "text-green-600" : "text-red-500"}`}>{signedMoney(carriedOver)}</p>
+              <p className={`text-sm font-bold ${carriedOver >= 0 ? "text-green-600" : "text-red-500"}`}>{signed(carriedOver)}</p>
             </div>
           )}
           {current.map(a => row(a, !readOnly))}
@@ -117,7 +119,7 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
           {current.length > 0 && (
             <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
               <p className="text-sm font-semibold text-gray-700">This period</p>
-              <p className={`text-sm font-bold ${currentTotal >= 0 ? "text-green-600" : "text-red-500"}`}>{signedMoney(currentTotal)}</p>
+              <p className={`text-sm font-bold ${currentTotal >= 0 ? "text-green-600" : "text-red-500"}`}>{signed(currentTotal)}</p>
             </div>
           )}
         </div>
@@ -130,12 +132,12 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
             <div key={g.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 bg-gray-50">
                 <p className="text-sm font-semibold text-gray-700">🔒 Paid {g.paidAt ? shortDate(g.paidAt) : ""}</p>
-                <p className="text-sm font-bold text-gray-700">{g.paid !== null ? plainMoney(g.paid) : ""}</p>
+                <p className="text-sm font-bold text-gray-700">{g.paid !== null ? fmt(g.paid) : ""}</p>
               </div>
               <div className="divide-y divide-gray-50">{g.items.map(a => row(a, false))}</div>
               <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100">
                 <p className="text-xs text-gray-400">Grades in this period</p>
-                <p className="text-xs font-semibold text-gray-500">{signedMoney(g.total)}</p>
+                <p className="text-xs font-semibold text-gray-500">{signed(g.total)}</p>
               </div>
             </div>
           ))}

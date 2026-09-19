@@ -33,14 +33,14 @@ describe.each(RULE_SETS)("browser rules match the server's ledger rules — %s",
   const settings: FullRewardSettings = { ...BASE, ...rules };
 
   it.each(types.flatMap(type => grades.map(grade => [type, grade] as const)))("%s @ %s%%", (type, grade) => {
-    const shown = getRewardStatus(make({ type, grade }), rules).earned;
+    const shown = getRewardStatus(make({ type, grade }), { ...rules, rewardType: "money", customUnit: "" }).earned;
     const ledger = computeAssignmentReward({ type, status: "graded", grade, title: "T" }, settings)?.amount ?? 0; // no entry == $0
     // `+ 0` normalizes -0 (a "-$0" penalty with a $0 test amount) so it compares equal to 0.
     expect((shown ?? 0) + 0).toBe(ledger + 0);
   });
 
   it.each(types)("%s: missing agrees", type => {
-    expect(getRewardStatus(make({ type, status: "missing", grade: null }), rules).earned).toBe(
+    expect(getRewardStatus(make({ type, status: "missing", grade: null }), { ...rules, rewardType: "money", customUnit: "" }).earned).toBe(
       computeAssignmentReward({ type, status: "missing", grade: null, title: "T" }, settings)?.amount ?? 0,
     );
   });

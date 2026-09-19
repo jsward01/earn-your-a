@@ -3,7 +3,7 @@ import type { AuthUser, RewardSettings } from "../../types";
 import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
 import { Avatar } from "../shared/Avatar";
-import { DEFAULT_REWARD_SETTINGS } from "../../lib/rewards";
+import { DEFAULT_REWARD_SETTINGS, unitWord } from "../../lib/rewards";
 import { AvatarPicker } from "./AvatarPicker";
 
 interface ParentSettingsProps {
@@ -14,13 +14,19 @@ interface ParentSettingsProps {
   onSettingsSaved: (settings: RewardSettings) => void;
 }
 
-const REWARD_AMOUNT_FIELDS: { label: string; key: keyof RewardSettings; prefix: string; suffix: string }[] = [
-  { label: "Assignment Reward", key: "assignmentReward", prefix: "$", suffix: "each" },
-  { label: "Test / Quiz Reward", key: "testReward", prefix: "$", suffix: "each" },
-  { label: "Passing Threshold", key: "passingThreshold", prefix: "", suffix: "%" },
-  { label: "Makeup Window", key: "makeupWindow", prefix: "", suffix: "days" },
-  { label: "Payout Holdback", key: "holdback", prefix: "$", suffix: "buffer" },
+/** Fields whose number is a reward amount, so its unit follows the reward type (money "$", screen time "min", points "pts", custom word). */
+const REWARD_AMOUNT_FIELDS: { label: string; key: keyof RewardSettings; isReward: boolean; suffix: string }[] = [
+  { label: "Assignment Reward", key: "assignmentReward", isReward: true, suffix: "each" },
+  { label: "Test / Quiz Reward", key: "testReward", isReward: true, suffix: "each" },
+  { label: "Passing Threshold", key: "passingThreshold", isReward: false, suffix: "%" },
+  { label: "Makeup Window", key: "makeupWindow", isReward: false, suffix: "days" },
+  { label: "Payout Holdback", key: "holdback", isReward: true, suffix: "buffer" },
 ];
+
+/** What to show around a reward amount's number box for the selected type. */
+function rewardAffixes(s: Pick<RewardSettings, "rewardType" | "customUnit">, suffix: string): { prefix: string; suffix: string } {
+  return s.rewardType === "money" ? { prefix: "$", suffix } : { prefix: "", suffix: `${unitWord(s)} ${suffix}` };
+}
 
 const BONUS_FIELDS: { key: "excellenceBonus" | "streakBonus"; label: string; desc: string }[] = [
   { key: "excellenceBonus", label: "Excellence Bonus", desc: "Extra reward for 80%+ and 90%+ grades" },
@@ -192,21 +198,37 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
             </button>
           ))}
         </div>
+        {settings.rewardType === "custom" && (
+          <label className="block">
+            <span className="block text-xs font-medium text-gray-500 mb-1">What do you call the reward?</span>
+            <input
+              value={settings.customUnit} maxLength={20} placeholder="e.g. stars, tokens, minutes of gaming"
+              onChange={e => update("customUnit", e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </label>
+        )}
+        <p className="text-xs text-gray-400">
+          Changing the type only changes the unit shown. Numbers aren't converted (20 stays 20), so review the amounts below. It's best to choose this before grades start adding up.
+        </p>
       </div>
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
         <p className="text-xs text-gray-400 font-medium">REWARD AMOUNTS</p>
-        {REWARD_AMOUNT_FIELDS.map(f => (
+        {REWARD_AMOUNT_FIELDS.map(f => {
+          const { prefix, suffix } = f.isReward ? rewardAffixes(settings, f.suffix) : { prefix: "", suffix: f.suffix };
+          return (
           <div key={f.key} className="flex items-center justify-between">
             <p className="text-sm text-gray-700">{f.label}</p>
             <div className="flex items-center gap-1">
-              {f.prefix && <span className="text-gray-500 text-sm">{f.prefix}</span>}
+              {prefix && <span className="text-gray-500 text-sm">{prefix}</span>}
               <input type="number" value={settings[f.key] as number} onChange={e => update(f.key, parseFloat(e.target.value) as RewardSettings[typeof f.key])}
                 className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-              <span className="text-gray-400 text-xs">{f.suffix}</span>
+              <span className="text-gray-400 text-xs">{suffix}</span>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">

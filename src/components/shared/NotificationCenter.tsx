@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Assignment, AppNotification, NotificationSettings } from "../../types";
 import { NOTIFICATION_TYPES, generateNotifications } from "../../lib/notifications";
+import { formatAmount } from "../../lib/rewards";
 import { useRewardSettings } from "../../lib/rewardSettingsContext";
 import { fetchPayouts } from "../../lib/api";
 
@@ -38,7 +39,7 @@ export function NotificationCenter({ assignments, isParent, payoutPending, stude
       .then(payouts => {
         const amount = payouts.find(p => p.status === "pending")?.amount ?? null;
         if (amount === null) return;
-        const amountText = `$${amount.toFixed(2)}`;
+        const amountText = formatAmount(amount, rules);
         setNotifications(prev => prev.map(n => n.id !== "payout-pending" ? n : {
           ...n,
           body: isParent
@@ -47,7 +48,7 @@ export function NotificationCenter({ assignments, isParent, payoutPending, stude
         }));
       })
       .catch(err => console.error("Failed to load payouts", err));
-  }, [payoutPending, isParent, studentName]);
+  }, [payoutPending, isParent, studentName, rules]);
 
   const accentBg = isParent ? "bg-emerald-700" : "bg-indigo-600";
 

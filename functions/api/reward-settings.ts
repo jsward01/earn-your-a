@@ -18,6 +18,7 @@ interface RewardSettingsRow {
   excellence_bonus: number;
   streak_bonus: number;
   payout_schedule: PayoutSchedule;
+  custom_unit: string;
 }
 
 interface RewardSettingsBody {
@@ -30,6 +31,8 @@ interface RewardSettingsBody {
   excellenceBonus: boolean;
   streakBonus: boolean;
   payoutSchedule: PayoutSchedule;
+  /** Only shown when rewardType is 'custom'. */
+  customUnit: string;
 }
 
 const DEFAULT_SETTINGS: RewardSettingsBody = {
@@ -42,6 +45,7 @@ const DEFAULT_SETTINGS: RewardSettingsBody = {
   excellenceBonus: true,
   streakBonus: true,
   payoutSchedule: "request",
+  customUnit: "",
 };
 
 function toBody(row: RewardSettingsRow): RewardSettingsBody {
@@ -55,6 +59,7 @@ function toBody(row: RewardSettingsRow): RewardSettingsBody {
     excellenceBonus: !!row.excellence_bonus,
     streakBonus: !!row.streak_bonus,
     payoutSchedule: row.payout_schedule,
+    customUnit: row.custom_unit ?? "",
   };
 }
 
@@ -64,7 +69,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   const row = await context.env.DB
     .prepare(
-      `SELECT assignment_reward, test_reward, passing_threshold, makeup_window_days, holdback, reward_type, excellence_bonus, streak_bonus, payout_schedule
+      `SELECT assignment_reward, test_reward, passing_threshold, makeup_window_days, holdback, reward_type, excellence_bonus, streak_bonus, payout_schedule, custom_unit
        FROM reward_settings WHERE family_id = ?`,
     )
     .bind(user.familyId)
@@ -75,6 +80,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
 const REWARD_TYPES: RewardType[] = ["money", "screen", "points", "custom"];
 const PAYOUT_SCHEDULES: PayoutSchedule[] = ["request", "monthly", "manual"];
+const MAX_CUSTOM_UNIT = 20;
 
 function isFiniteNonNegative(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n) && n >= 0;
@@ -96,6 +102,8 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
     assignmentReward, testReward, passingThreshold, makeupWindow, holdback,
     rewardType, excellenceBonus, streakBonus, payoutSchedule,
   } = body;
+  // Optional for older clients; blank means "units" on screen.
+  const customUnit = (body.customUnit ?? "").toString().trim();
 
   if (
     !isFiniteNonNegative(assignmentReward) ||
@@ -110,11 +118,12 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
   ) {
     return json({ error: "Invalid reward settings" }, 400);
   }
+  if (customUnit.length > MAX_CUSTOM_UNIT) return json({ error: `The custom unit can be at most ${MAX_CUSTOM_UNIT} characters` }, 400);
 
   await context.env.DB
     .prepare(
-      `INSERT INTO reward_settings (family_id, assignment_reward, test_reward, passing_threshold, makeup_window_days, holdback, reward_type, excellence_bonus, streak_bonus, payout_schedule, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `INSERT INTO reward_settings (family_id, assignment_reward, test_reward, passing_threshold, makeup_window_days, holdback, reward_type, excellence_bonus, streak_bonus, payout_schedule, custom_unit, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT(family_id) DO UPDATE SET
          assignment_reward = excluded.assignment_reward,
          test_reward = excluded.test_reward,
@@ -125,16 +134,17 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
          excellence_bonus = excluded.excellence_bonus,
          streak_bonus = excluded.streak_bonus,
          payout_schedule = excluded.payout_schedule,
+         custom_unit = excluded.custom_unit,
          updated_at = datetime('now')`,
     )
     .bind(
       user.familyId, assignmentReward, testReward, passingThreshold, makeupWindow, holdback,
-      rewardType, excellenceBonus ? 1 : 0, streakBonus ? 1 : 0, payoutSchedule,
+      rewardType, excellenceBonus ? 1 : 0, streakBonus ? 1 : 0, payoutSchedule, customUnit,
     )
     .run();
 
   return json(
-    { assignmentReward, testReward, passingThreshold, makeupWindow, holdback, rewardType, excellenceBonus, streakBonus, payoutSchedule },
+    { assignmentReward, testReward, passingThreshold, makeupWindow, holdback, rewardType, excellenceBonus, streakBonus, payoutSchedule, customUnit },
     200,
   );
 };

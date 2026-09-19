@@ -5,7 +5,8 @@ import {
   createAssignment, deleteAssignment, fetchAssignmentHistory, previewAssignmentUpdate, updateAssignment,
   type AssignmentImpact, type AssignmentInput, type HistoryEntry,
 } from "../../lib/api";
-import { plainMoney, shortDateTime, signedMoney } from "../../lib/money";
+import { shortDateTime } from "../../lib/dates";
+import { useFormatAmount } from "../../lib/rewardSettingsContext";
 
 interface AssignmentEditorProps {
   /** null = add new work (parents can enter graded work directly). */
@@ -40,6 +41,8 @@ function toPayload(f: Form): AssignmentInput | null {
 }
 
 export function AssignmentEditor({ assignment, studentName, onClose, onSaved, onDeleted }: AssignmentEditorProps) {
+  const fmt = useFormatAmount();
+  const signed = (n: number | null | undefined) => fmt(n ?? 0, { signed: true });
   const isNew = assignment === null;
   const [form, setForm] = useState<Form>(() => toForm(assignment));
   const [impact, setImpact] = useState<AssignmentImpact | null>(null);
@@ -143,8 +146,8 @@ export function AssignmentEditor({ assignment, studentName, onClose, onSaved, on
               <p className="text-gray-600">This change doesn't affect the balance.</p>
             ) : (
               <div className="space-y-0.5">
-                <p className="text-gray-700">Reward: <span className="font-semibold">{signedMoney(impact.ledgerBefore)} → {signedMoney(impact.ledgerAfter)}</span> ({signedMoney(impact.delta)})</p>
-                <p className="text-gray-700">Balance: <span className="font-semibold">{plainMoney(impact.balanceBefore)} → {plainMoney(impact.balanceAfter)}</span></p>
+                <p className="text-gray-700">Reward: <span className="font-semibold">{signed(impact.ledgerBefore)} → {signed(impact.ledgerAfter)}</span> ({signed(impact.delta)})</p>
+                <p className="text-gray-700">Balance: <span className="font-semibold">{fmt(impact.balanceBefore)} → {fmt(impact.balanceAfter)}</span></p>
                 <p className="text-xs text-gray-400">Priced at today's reward amounts.</p>
               </div>
             )}
@@ -159,7 +162,7 @@ export function AssignmentEditor({ assignment, studentName, onClose, onSaved, on
           confirmDelete ? (
             <div className="bg-red-50 rounded-2xl p-3 space-y-2">
               <p className="text-sm text-red-700">
-                Delete this for good? {assignment && assignment.recordedReward ? `Its ${signedMoney(assignment.recordedReward)} comes off the balance. ` : ""}The deletion is kept in the change history.
+                Delete this for good? {assignment && assignment.recordedReward ? `Its ${signed(assignment.recordedReward)} comes off the balance. ` : ""}The deletion is kept in the change history.
               </p>
               <div className="flex gap-2">
                 <button onClick={handleDelete} disabled={saving} className="flex-1 bg-red-500 text-white py-2 rounded-xl text-sm font-semibold disabled:opacity-40">Yes, delete</button>
@@ -180,7 +183,7 @@ export function AssignmentEditor({ assignment, studentName, onClose, onSaved, on
                   <p>{h.summary}</p>
                   <p className="text-gray-400">
                     {h.actorName}{h.actorRole === "student" ? " (student)" : ""} · {shortDateTime(h.createdAt)}
-                    {h.action === "update" && h.ledgerBefore !== h.ledgerAfter && <> · reward {signedMoney(h.ledgerBefore)} → {signedMoney(h.ledgerAfter)}</>}
+                    {h.action === "update" && h.ledgerBefore !== h.ledgerAfter && <> · reward {signed(h.ledgerBefore)} → {signed(h.ledgerAfter)}</>}
                   </p>
                 </div>
               ))}

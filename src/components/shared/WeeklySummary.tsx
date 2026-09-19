@@ -3,8 +3,8 @@ import type { Assignment } from "../../types";
 import { getSubjectLight } from "../../lib/styles";
 import { SUBJECTS } from "../../data/mockData";
 import { fetchRewardTransactions, type RewardTransaction } from "../../lib/api";
-import { formatMoney, rewardAmountFor } from "../../lib/rewards";
-import { useRewardSettings } from "../../lib/rewardSettingsContext";
+import { rewardAmountFor } from "../../lib/rewards";
+import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 
 interface WeeklySummaryProps {
   assignments: Assignment[];
@@ -24,6 +24,7 @@ function getPerformanceBadge(missingCount: number, avgGrade: number, passMark: n
 
 export function WeeklySummary({ assignments, isParent, studentName }: WeeklySummaryProps) {
   const rules = useRewardSettings();
+  const fmt = useFormatAmount();
   const accentBg = isParent ? "bg-emerald-700" : "bg-indigo-600";
   const accentLight = isParent ? "bg-emerald-50 text-emerald-700" : "bg-indigo-50 text-indigo-700";
 
@@ -116,21 +117,21 @@ export function WeeklySummary({ assignments, isParent, studentName }: WeeklySumm
         </div>
         <div className="grid grid-cols-3 divide-x divide-gray-100">
           <div className="p-4 text-center">
-            <p className="text-2xl font-bold text-green-600">+${weekEarned}</p>
+            <p className="text-2xl font-bold text-green-600">{fmt(weekEarned, { signed: true, short: true })}</p>
             <p className="text-xs text-gray-400 mt-1">Earned</p>
           </div>
           <div className="p-4 text-center">
-            <p className="text-2xl font-bold text-red-500">-${weekLost}</p>
+            <p className="text-2xl font-bold text-red-500">{fmt(-weekLost, { short: true })}</p>
             <p className="text-xs text-gray-400 mt-1">Lost</p>
           </div>
           <div className="p-4 text-center">
-            <p className={`text-2xl font-bold ${weekNet >= 0 ? "text-indigo-600" : "text-red-500"}`}>${weekNet}</p>
+            <p className={`text-2xl font-bold ${weekNet >= 0 ? "text-indigo-600" : "text-red-500"}`}>{fmt(weekNet, { short: true })}</p>
             <p className="text-xs text-gray-400 mt-1">Net Total</p>
           </div>
         </div>
         <div className="border-t border-gray-100 px-4 py-3 flex items-center justify-between bg-gray-50">
           <p className="text-sm text-gray-500">Running Monthly Total</p>
-          <p className="font-bold text-gray-800">${monthlyTotal.toFixed(2)}</p>
+          <p className="font-bold text-gray-800">{fmt(monthlyTotal)}</p>
         </div>
       </div>
 
@@ -238,7 +239,7 @@ export function WeeklySummary({ assignments, isParent, studentName }: WeeklySumm
                     <p className={`text-xs font-semibold ${daysAway <= 2 ? "text-red-500" : daysAway <= 4 ? "text-yellow-600" : "text-gray-400"}`}>
                       {daysAway === 0 ? "Today" : daysAway === 1 ? "Tomorrow" : `In ${daysAway}d`}
                     </p>
-                    <p className="text-xs text-indigo-500 font-semibold">{formatMoney(rewardAmountFor(a.type, rules))}</p>
+                    <p className="text-xs text-indigo-500 font-semibold">{fmt(rewardAmountFor(a.type, rules), { short: true })}</p>
                   </div>
                 </div>
               );
@@ -257,8 +258,8 @@ export function WeeklySummary({ assignments, isParent, studentName }: WeeklySumm
           <p className="text-white text-sm font-semibold">📚 Earn Your A Weekly Summary</p>
           <p className="text-gray-300 text-xs">
             {isParent
-              ? `${studentName} earned ${weekNet} this week • Avg grade: ${avgGrade}% • ${missing.length} missing • ${makeupOpen.length} makeup windows open`
-              : `You earned ${weekNet} this week! Avg: ${avgGrade}% • ${nextWeek.length} assignments due next week • ${makeupOpen.length} makeup windows still open`
+              ? `${studentName} earned ${fmt(weekNet, { short: true })} this week • Avg grade: ${avgGrade}% • ${missing.length} missing • ${makeupOpen.length} makeup windows open`
+              : `You earned ${fmt(weekNet, { short: true })} this week! Avg: ${avgGrade}% • ${nextWeek.length} assignments due next week • ${makeupOpen.length} makeup windows still open`
             }
           </p>
           <p className="text-indigo-300 text-xs font-medium mt-1">Tap to view full summary →</p>

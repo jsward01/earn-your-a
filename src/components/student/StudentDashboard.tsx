@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Assignment, AssignmentStatus, NewAssignmentForm } from "../../types";
 import { SUBJECTS } from "../../data/mockData";
 import { getRewardStatus } from "../../lib/rewards";
+import { useRewardSettings } from "../../lib/rewardSettingsContext";
 import { getSubjectColor, getStatusBadge, getDaysLeftColor } from "../../lib/styles";
 import { createAssignment, updateAssignment, deleteAssignment } from "../../lib/api";
 
@@ -17,6 +18,7 @@ type Tab = (typeof TABS)[number];
 const EMPTY_FORM: NewAssignmentForm = { title: "", subject: "Math", type: "assignment", dueDate: "", status: "pending", grade: "" };
 
 export function StudentDashboard({ assignments, setAssignments, onChanged }: StudentDashboardProps) {
+  const rules = useRewardSettings();
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newA, setNewA] = useState<NewAssignmentForm>(EMPTY_FORM);
@@ -133,7 +135,7 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
       </div>
       <div className="px-4 space-y-3">
         {filtered.map(a => {
-          const r = getRewardStatus(a);
+          const r = getRewardStatus(a, rules);
           return (
             <div key={a.id} onClick={() => openEdit(a)} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer active:opacity-80">
               <div className="flex items-stretch">

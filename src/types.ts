@@ -11,7 +11,6 @@ export interface Assignment {
   grade: number | null;
   daysLeft: number | null;
   makeupAvailable?: boolean;
-  rewardValue?: number;
 }
 
 export interface RewardStatus {

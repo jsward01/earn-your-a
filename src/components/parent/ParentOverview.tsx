@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { Assignment, PayoutAction } from "../../types";
 import { getSubjectColor, getSubjectLight, getDaysLeftColor } from "../../lib/styles";
 import { fetchPayouts, resolvePayout, type PayoutRequestRow, type RewardSummary } from "../../lib/api";
+import { formatMoney, rewardAmountFor } from "../../lib/rewards";
+import { useRewardSettings } from "../../lib/rewardSettingsContext";
 
 interface ParentOverviewProps {
   assignments: Assignment[];
@@ -25,6 +27,7 @@ function getDueSoonLabel(date: string): { text: string; color: string } {
 }
 
 export function ParentOverview({ assignments, summary, onChanged }: ParentOverviewProps) {
+  const rules = useRewardSettings();
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [payoutAction, setPayoutAction] = useState<PayoutAction | null>(null);
   const [payouts, setPayouts] = useState<PayoutRequestRow[]>([]);
@@ -55,7 +58,7 @@ export function ParentOverview({ assignments, summary, onChanged }: ParentOvervi
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
   const missing = assignments.filter(a => a.status === "missing");
-  const lowGrade = assignments.filter(a => a.status === "graded" && a.grade !== null && a.grade < 70);
+  const lowGrade = assignments.filter(a => a.status === "graded" && a.grade !== null && a.grade < rules.passingThreshold);
 
   const graded = assignments.filter(a => a.grade !== null);
   const avgGrade = graded.length ? Math.round(graded.reduce((s, a) => s + (a.grade ?? 0), 0) / graded.length) : 0;
@@ -82,7 +85,7 @@ export function ParentOverview({ assignments, summary, onChanged }: ParentOvervi
           { label: "Upcoming", val: upcoming.length, color: "text-indigo-600", bg: "bg-indigo-50" },
           { label: "Missing", val: missing.length, color: missing.length > 0 ? "text-red-500" : "text-green-600", bg: missing.length > 0 ? "bg-red-50" : "bg-green-50" },
           { label: "Low Grade", val: lowGrade.length, color: lowGrade.length > 0 ? "text-orange-500" : "text-green-600", bg: lowGrade.length > 0 ? "bg-orange-50" : "bg-green-50" },
-          { label: "Avg Grade", val: `${avgGrade}%`, color: avgGrade >= 90 ? "text-green-600" : avgGrade >= 70 ? "text-indigo-600" : "text-red-500", bg: "bg-white" },
+          { label: "Avg Grade", val: `${avgGrade}%`, color: avgGrade >= 90 ? "text-green-600" : avgGrade >= rules.passingThreshold ? "text-indigo-600" : "text-red-500", bg: "bg-white" },
         ].map((s, i) => (
           <div key={i} className={`${s.bg} rounded-2xl p-3 shadow-sm text-center border border-gray-100`}>
             <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
@@ -119,7 +122,7 @@ export function ParentOverview({ assignments, summary, onChanged }: ParentOvervi
                   </div>
                   <div className="text-right shrink-0 ml-2">
                     <p className={`text-xs ${due.color}`}>{due.text}</p>
-                    <p className="text-xs text-indigo-500 font-semibold mt-0.5">{a.type === "assignment" ? "$3" : "$20"} potential</p>
+                    <p className="text-xs text-indigo-500 font-semibold mt-0.5">{formatMoney(rewardAmountFor(a.type, rules))} potential</p>
                   </div>
                 </div>
               );
@@ -154,7 +157,7 @@ export function ParentOverview({ assignments, summary, onChanged }: ParentOvervi
                 </div>
                 <div className="text-right shrink-0 ml-2">
                   <p className="text-xs text-red-500 font-bold">$0.00</p>
-                  <p className="text-xs text-gray-400">was ${a.type === "assignment" ? "$3" : "$20"}</p>
+                  <p className="text-xs text-gray-400">was {formatMoney(rewardAmountFor(a.type, rules))}</p>
                 </div>
               </div>
             ))}

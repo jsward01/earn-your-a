@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Assignment, AppNotification, NotificationSettings } from "../../types";
 import { NOTIFICATION_TYPES, generateNotifications } from "../../lib/notifications";
+import { useRewardSettings } from "../../lib/rewardSettingsContext";
 import { fetchPayouts } from "../../lib/api";
 
 interface NotificationCenterProps {
@@ -23,8 +24,9 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 };
 
 export function NotificationCenter({ assignments, isParent, payoutPending, studentName }: NotificationCenterProps) {
+  const rules = useRewardSettings();
   const [notifications, setNotifications] = useState<AppNotification[]>(() =>
-    generateNotifications(assignments, isParent, payoutPending, studentName, null),
+    generateNotifications(assignments, isParent, payoutPending, studentName, null, rules),
   );
   const [filter, setFilter] = useState<string>("all");
   const [showSettings, setShowSettings] = useState(false);

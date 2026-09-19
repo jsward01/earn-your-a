@@ -30,6 +30,5 @@ export function fromApiRow(row: AssignmentApiRow): Assignment {
     grade: row.grade,
     daysLeft: row.makeupDeadline ? daysUntil(row.makeupDeadline) : null,
     makeupAvailable: row.makeupDeadline !== null && !row.makeupUsed,
-    rewardValue: row.type === "assignment" ? 3 : 20,
   };
 }

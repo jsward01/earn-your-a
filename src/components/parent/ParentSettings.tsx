@@ -3,20 +3,16 @@ import type { AuthUser, RewardSettings } from "../../types";
 import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
 import { Avatar } from "../shared/Avatar";
+import { DEFAULT_REWARD_SETTINGS } from "../../lib/rewards";
 import { AvatarPicker } from "./AvatarPicker";
 
 interface ParentSettingsProps {
   user: AuthUser;
   /** Called after the student list or a student's details change (added, new picture). */
   onStudentsChanged: () => void;
+  /** Called with the saved settings so every screen switches to the new amounts immediately. */
+  onSettingsSaved: (settings: RewardSettings) => void;
 }
-
-const DEFAULT_SETTINGS: RewardSettings = {
-  assignmentReward: 3, testReward: 20, passingThreshold: 70,
-  makeupWindow: 7, holdback: 20, rewardType: "money",
-  excellenceBonus: true, streakBonus: true,
-  payoutSchedule: "request",
-};
 
 const REWARD_AMOUNT_FIELDS: { label: string; key: keyof RewardSettings; prefix: string; suffix: string }[] = [
   { label: "Assignment Reward", key: "assignmentReward", prefix: "$", suffix: "each" },
@@ -44,8 +40,8 @@ const PAYOUT_SCHEDULES: { val: RewardSettings["payoutSchedule"]; label: string }
   { val: "manual", label: "Parent Initiated Only" },
 ];
 
-export function ParentSettings({ user, onStudentsChanged }: ParentSettingsProps) {
-  const [settings, setSettings] = useState<RewardSettings>(DEFAULT_SETTINGS);
+export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: ParentSettingsProps) {
+  const [settings, setSettings] = useState<RewardSettings>(DEFAULT_REWARD_SETTINGS);
   const [accounts, setAccounts] = useState<FamilyAccount[]>([]);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [resetResult, setResetResult] = useState<PasswordResetResult | null>(null);
@@ -100,6 +96,7 @@ export function ParentSettings({ user, onStudentsChanged }: ParentSettingsProps)
     try {
       const result = await saveRewardSettings(settings);
       setSettings(result);
+      onSettingsSaved(result);
       setSaved(true);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Failed to save settings");

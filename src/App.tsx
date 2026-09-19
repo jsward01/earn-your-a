@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AuthUser, Assignment, View } from "./types";
-import { fetchCurrentUser, fetchAssignments, fetchFamilyAccounts, fetchRewardSummary, logout as apiLogout, setActiveStudent, type RewardSummary } from "./lib/api";
+import type { AuthUser, Assignment, RewardSettings, View } from "./types";
+import { fetchCurrentUser, fetchAssignments, fetchFamilyAccounts, fetchRewardSettings, fetchRewardSummary, logout as apiLogout, setActiveStudent, type RewardSummary } from "./lib/api";
+import { DEFAULT_REWARD_SETTINGS } from "./lib/rewards";
+import { RewardSettingsContext } from "./lib/rewardSettingsContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { AppHeader, type StudentOption } from "./components/AppHeader";
 import { BottomNav, type NavItem } from "./components/BottomNav";
@@ -52,6 +54,8 @@ export default function App() {
   const [summary, setSummary] = useState<RewardSummary | null>(null);
   const [students, setStudents] = useState<StudentOption[]>([]);
   const [studentsLoaded, setStudentsLoaded] = useState(false);
+  const [rewardSettings, setRewardSettings] = useState<RewardSettings>(DEFAULT_REWARD_SETTINGS);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   // Mirrors selectedStudentId so async callbacks can tell whether a response is still for the current student.
   const selectedRef = useRef<string | null>(null);
@@ -101,6 +105,15 @@ export default function App() {
     if (user?.role === "parent") loadStudents();
   }, [user, loadStudents]);
 
+  // Reward settings are per family (not per student), so they load once per login rather than per selection.
+  useEffect(() => {
+    if (!user) return;
+    fetchRewardSettings()
+      .then(setRewardSettings)
+      .catch(err => console.error("Failed to load reward settings; showing house defaults", err))
+      .finally(() => setSettingsLoaded(true));
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     if (user.role === "parent" && !selectedStudentId) return;
@@ -134,6 +147,8 @@ export default function App() {
     setSummary(null);
     setStudents([]);
     setStudentsLoaded(false);
+    setRewardSettings(DEFAULT_REWARD_SETTINGS);
+    setSettingsLoaded(false);
     selectedRef.current = null;
     setActiveStudent(null);
     setSelectedStudentId(null);
@@ -141,6 +156,7 @@ export default function App() {
   }
 
   return (
+    <RewardSettingsContext.Provider value={rewardSettings}>
     <div className="h-screen flex flex-col bg-gray-50 font-sans">
       <AppHeader
         isParent={isParent}
@@ -166,15 +182,16 @@ export default function App() {
         {view === "messages" && <MessagesScreen isParent={isParent} />}
         {view === "calendar" && <CalendarView assignments={assignments} isParent={isParent} />}
         {view === "weekly" && <WeeklySummary assignments={assignments} isParent={isParent} studentName={studentName} />}
-        {view === "notifications" && <NotificationCenter assignments={assignments} isParent={isParent} payoutPending={payoutPending} studentName={studentName} />}
+        {view === "notifications" && <NotificationCenter key={settingsLoaded ? "loaded" : "defaults"} assignments={assignments} isParent={isParent} payoutPending={payoutPending} studentName={studentName} />}
         {!isParent && view === "ai" && <AIBreakdown />}
         {!isParent && view === "profile" && <StudentProfile name={user.name} />}
         {isParent && view === "dashboard" && <ParentOverview assignments={assignments} summary={summary} onChanged={refreshSummary} />}
         {isParent && view === "assignments" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} onChanged={refreshSummary} />}
-        {isParent && view === "settings" && <ParentSettings user={user} onStudentsChanged={() => { loadStudents(); refreshSummary(); }} />}
+        {isParent && view === "settings" && <ParentSettings user={user} onStudentsChanged={() => { loadStudents(); refreshSummary(); }} onSettingsSaved={setRewardSettings} />}
       </div>
 
       <BottomNav navs={navs} view={view} isParent={isParent} payoutPending={payoutPending} onSelect={setView} />
     </div>
+    </RewardSettingsContext.Provider>
   );
 }

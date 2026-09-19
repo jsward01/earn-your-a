@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Assignment } from "../../types";
-import { getRewardStatus } from "../../lib/rewards";
+import { getRewardStatus, rewardAmountFor } from "../../lib/rewards";
+import { useRewardSettings } from "../../lib/rewardSettingsContext";
 import { getSubjectLight } from "../../lib/styles";
 
 interface CalendarViewProps {
@@ -36,6 +37,7 @@ function toDateStr(d: Date): string {
 }
 
 export function CalendarView({ assignments, isParent }: CalendarViewProps) {
+  const rules = useRewardSettings();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const [windowStart, setWindowStart] = useState<Date>(() => getWindowStart(today));
@@ -88,11 +90,11 @@ export function CalendarView({ assignments, isParent }: CalendarViewProps) {
           {items.length === 0
             ? <div className="flex items-center justify-center h-10"><p className="text-gray-200 text-lg">—</p></div>
             : items.map(a => {
-              const r = getRewardStatus(a);
+              const r = getRewardStatus(a, rules);
               return (
                 <div key={a.id} className={`rounded-xl px-2 py-1.5 border-l-2 ${
                   a.status === "missing" ? "bg-red-50 border-red-400" :
-                  a.status === "graded" && a.grade !== null && a.grade < 70 ? "bg-orange-50 border-orange-400" :
+                  a.status === "graded" && a.grade !== null && a.grade < rules.passingThreshold ? "bg-orange-50 border-orange-400" :
                   a.status === "graded" ? "bg-green-50 border-green-400" :
                   "bg-indigo-50 border-indigo-400"
                 }`}>
@@ -174,8 +176,8 @@ export function CalendarView({ assignments, isParent }: CalendarViewProps) {
           {[
             { label: "Due", val: schoolDays.reduce((s, d) => s + getAssignmentsFor(d).filter(a => a.status === "pending").length, 0), color: "text-indigo-600" },
             { label: "Missing", val: schoolDays.reduce((s, d) => s + getAssignmentsFor(d).filter(a => a.status === "missing").length, 0), color: "text-red-500" },
-            { label: "Low Grade", val: schoolDays.reduce((s, d) => s + getAssignmentsFor(d).filter(a => a.grade !== null && a.grade < 70).length, 0), color: "text-orange-500" },
-            { label: "Potential", val: `${schoolDays.reduce((s, d) => s + getAssignmentsFor(d).filter(a => a.status === "pending").reduce((ss, a) => ss + (a.type === "assignment" ? 3 : 20), 0), 0)}`, color: "text-green-600" },
+            { label: "Low Grade", val: schoolDays.reduce((s, d) => s + getAssignmentsFor(d).filter(a => a.grade !== null && a.grade < rules.passingThreshold).length, 0), color: "text-orange-500" },
+            { label: "Potential", val: `${Number(schoolDays.reduce((s, d) => s + getAssignmentsFor(d).filter(a => a.status === "pending").reduce((ss, a) => ss + rewardAmountFor(a.type, rules), 0), 0).toFixed(2))}`, color: "text-green-600" },
           ].map((s, i) => (
             <div key={i} className="bg-gray-50 rounded-xl p-2">
               <p className={`text-lg font-bold ${s.color}`}>{s.val}</p>

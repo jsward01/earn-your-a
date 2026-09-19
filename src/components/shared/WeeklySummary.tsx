@@ -3,6 +3,8 @@ import type { Assignment } from "../../types";
 import { getSubjectLight } from "../../lib/styles";
 import { SUBJECTS } from "../../data/mockData";
 import { fetchRewardTransactions, type RewardTransaction } from "../../lib/api";
+import { formatMoney, rewardAmountFor } from "../../lib/rewards";
+import { useRewardSettings } from "../../lib/rewardSettingsContext";
 
 interface WeeklySummaryProps {
   assignments: Assignment[];
@@ -12,15 +14,16 @@ interface WeeklySummaryProps {
 
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function getPerformanceBadge(missingCount: number, avgGrade: number) {
+function getPerformanceBadge(missingCount: number, avgGrade: number, passMark: number) {
   if (missingCount === 0 && avgGrade >= 90) return { emoji: "🏆", label: "Outstanding Week!", color: "text-yellow-600", bg: "bg-yellow-50 border-yellow-200" };
   if (missingCount === 0 && avgGrade >= 80) return { emoji: "⭐", label: "Great Week!", color: "text-green-600", bg: "bg-green-50 border-green-200" };
-  if (missingCount === 0 && avgGrade >= 70) return { emoji: "✅", label: "Solid Week", color: "text-indigo-600", bg: "bg-indigo-50 border-indigo-200" };
-  if (missingCount > 0 && avgGrade >= 70) return { emoji: "⚠️", label: "Missing Work to Fix", color: "text-orange-600", bg: "bg-orange-50 border-orange-200" };
+  if (missingCount === 0 && avgGrade >= passMark) return { emoji: "✅", label: "Solid Week", color: "text-indigo-600", bg: "bg-indigo-50 border-indigo-200" };
+  if (missingCount > 0 && avgGrade >= passMark) return { emoji: "⚠️", label: "Missing Work to Fix", color: "text-orange-600", bg: "bg-orange-50 border-orange-200" };
   return { emoji: "🚨", label: "Needs Attention", color: "text-red-600", bg: "bg-red-50 border-red-200" };
 }
 
 export function WeeklySummary({ assignments, isParent, studentName }: WeeklySummaryProps) {
+  const rules = useRewardSettings();
   const accentBg = isParent ? "bg-emerald-700" : "bg-indigo-600";
   const accentLight = isParent ? "bg-emerald-50 text-emerald-700" : "bg-indigo-50 text-indigo-700";
 
@@ -68,7 +71,7 @@ export function WeeklySummary({ assignments, isParent, studentName }: WeeklySumm
     return diff >= 0 && diff <= 7;
   }).sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
-  const badge = getPerformanceBadge(missing.length, avgGrade);
+  const badge = getPerformanceBadge(missing.length, avgGrade, rules.passingThreshold);
 
   const studentMessages = [
     "You're making progress — keep showing up every day and the grades will follow! 💪",
@@ -134,10 +137,10 @@ export function WeeklySummary({ assignments, isParent, studentName }: WeeklySumm
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
           <p className="text-xs text-gray-400 font-medium mb-1">Average Grade</p>
-          <p className={`text-3xl font-bold ${avgGrade >= 90 ? "text-green-600" : avgGrade >= 70 ? "text-indigo-600" : "text-red-500"}`}>{avgGrade}%</p>
+          <p className={`text-3xl font-bold ${avgGrade >= 90 ? "text-green-600" : avgGrade >= rules.passingThreshold ? "text-indigo-600" : "text-red-500"}`}>{avgGrade}%</p>
           <p className="text-xs text-gray-400 mt-1">{graded.length} assignments graded</p>
           <div className="w-full bg-gray-100 rounded-full h-1.5 mt-2">
-            <div className={`h-1.5 rounded-full ${avgGrade >= 90 ? "bg-green-500" : avgGrade >= 70 ? "bg-indigo-500" : "bg-red-500"}`} style={{ width: `${avgGrade}%` }} />
+            <div className={`h-1.5 rounded-full ${avgGrade >= 90 ? "bg-green-500" : avgGrade >= rules.passingThreshold ? "bg-indigo-500" : "bg-red-500"}`} style={{ width: `${avgGrade}%` }} />
           </div>
         </div>
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
@@ -166,13 +169,13 @@ export function WeeklySummary({ assignments, isParent, studentName }: WeeklySumm
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectLight(s.subject)}`}>{s.subject}</span>
                   {s.missing > 0 && <span className="text-xs text-red-500 font-semibold">⚠️ {s.missing} missing</span>}
                 </div>
-                <span className={`font-bold text-sm ${s.avg === null ? "text-gray-400" : s.avg >= 90 ? "text-green-600" : s.avg >= 70 ? "text-indigo-600" : "text-red-500"}`}>
+                <span className={`font-bold text-sm ${s.avg === null ? "text-gray-400" : s.avg >= 90 ? "text-green-600" : s.avg >= rules.passingThreshold ? "text-indigo-600" : "text-red-500"}`}>
                   {s.avg !== null ? `${s.avg}%` : "—"}
                 </span>
               </div>
               {s.avg !== null && (
                 <div className="w-full bg-gray-100 rounded-full h-1.5">
-                  <div className={`h-1.5 rounded-full ${s.avg >= 90 ? "bg-green-500" : s.avg >= 70 ? "bg-indigo-500" : "bg-red-500"}`} style={{ width: `${s.avg}%` }} />
+                  <div className={`h-1.5 rounded-full ${s.avg >= 90 ? "bg-green-500" : s.avg >= rules.passingThreshold ? "bg-indigo-500" : "bg-red-500"}`} style={{ width: `${s.avg}%` }} />
                 </div>
               )}
             </div>
@@ -235,7 +238,7 @@ export function WeeklySummary({ assignments, isParent, studentName }: WeeklySumm
                     <p className={`text-xs font-semibold ${daysAway <= 2 ? "text-red-500" : daysAway <= 4 ? "text-yellow-600" : "text-gray-400"}`}>
                       {daysAway === 0 ? "Today" : daysAway === 1 ? "Tomorrow" : `In ${daysAway}d`}
                     </p>
-                    <p className="text-xs text-indigo-500 font-semibold">{a.type === "assignment" ? "$3" : "$20"}</p>
+                    <p className="text-xs text-indigo-500 font-semibold">{formatMoney(rewardAmountFor(a.type, rules))}</p>
                   </div>
                 </div>
               );

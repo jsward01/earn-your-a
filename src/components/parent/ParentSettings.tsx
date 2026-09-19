@@ -138,7 +138,7 @@ export function ParentSettings({ user, onStudentsChanged }: ParentSettingsProps)
             { role: "parent", title: "Parents", people: parents, empty: "No parent accounts." },
             { role: "student", title: "Students", people: students, empty: "No students yet." },
           ] as const).map(col => (
-            <div key={col.role} className="space-y-3">
+            <div key={col.role} className="flex flex-col gap-3">
               <p className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-1">{col.title}</p>
               {col.people.length === 0 && <p className="text-xs text-gray-400">{col.empty}</p>}
               {col.people.map(a => {
@@ -175,7 +175,7 @@ export function ParentSettings({ user, onStudentsChanged }: ParentSettingsProps)
               {user.isAdmin && (
                 <button
                   onClick={() => { setAddRole(col.role); setAddError(null); }}
-                  className="w-full text-sm text-indigo-600 font-medium border border-dashed border-indigo-200 rounded-xl py-2.5"
+                  className="mt-auto w-full text-sm text-indigo-600 font-medium border border-dashed border-indigo-200 rounded-xl py-2.5"
                 >
                   + Add {col.role === "parent" ? "Parent" : "Student"} Account
                 </button>

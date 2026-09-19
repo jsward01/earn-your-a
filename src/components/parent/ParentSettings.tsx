@@ -235,8 +235,8 @@ export function ParentSettings({ user }: ParentSettingsProps) {
       )}
 
       {showAddParent && (
-        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
-          <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 space-y-4">
             <h2 className="text-lg font-bold text-gray-800">Add Parent Account</h2>
             {addError && <p className="text-sm text-red-500">{addError}</p>}
             <input
@@ -265,8 +265,8 @@ export function ParentSettings({ user }: ParentSettingsProps) {
       )}
 
       {addResult && (
-        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
-          <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white w-full max-w-md rounded-3xl p-6 space-y-4">
             <h2 className="text-lg font-bold text-gray-800">Parent Account Created</h2>
             <p className="text-sm text-gray-500">
               Temporary password for <span className="font-semibold">{addResult.name}</span> ({addResult.email}).

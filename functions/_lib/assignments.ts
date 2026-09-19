@@ -12,14 +12,6 @@ export interface AssignmentRow {
   makeup_used: number;
 }
 
-export async function getStudentId(db: D1Database, familyId: string): Promise<string | null> {
-  const row = await db
-    .prepare("SELECT id FROM users WHERE family_id = ? AND role = 'student' LIMIT 1")
-    .bind(familyId)
-    .first<{ id: string }>();
-  return row?.id ?? null;
-}
-
 /**
  * House rule: a missing or low (<passingThreshold) assignment/test/quiz gets a
  * fixed makeup window from the moment it first enters that state. Editing the

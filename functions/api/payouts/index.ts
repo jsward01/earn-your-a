@@ -1,6 +1,7 @@
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
 import { getFullRewardSettings, getBalance } from "../../_lib/rewards";
+import { resolveStudentId } from "../../_lib/students";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -30,9 +31,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const user = await getSessionUser(context.env.DB, context.request);
   if (!user) return json({ error: "Not authenticated" }, 401);
 
+  const resolved = await resolveStudentId(context.env.DB, user, context.request);
+  if ("error" in resolved) return json({ error: resolved.error }, resolved.status);
+
   const { results } = await context.env.DB
-    .prepare("SELECT * FROM payout_requests WHERE family_id = ? ORDER BY requested_at DESC")
-    .bind(user.familyId)
+    .prepare("SELECT * FROM payout_requests WHERE student_id = ? ORDER BY requested_at DESC")
+    .bind(resolved.studentId)
     .all<PayoutRow>();
 
   return json(results.map(toJson), 200);
@@ -44,8 +48,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (user.role !== "student") return json({ error: "Only the student can request a payout" }, 403);
 
   const existingPending = await context.env.DB
-    .prepare("SELECT id FROM payout_requests WHERE family_id = ? AND status = 'pending' LIMIT 1")
-    .bind(user.familyId)
+    .prepare("SELECT id FROM payout_requests WHERE student_id = ? AND status = 'pending' LIMIT 1")
+    .bind(user.id)
     .first<{ id: string }>();
   if (existingPending) return json({ error: "A payout request is already pending" }, 409);
 

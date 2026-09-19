@@ -1,7 +1,8 @@
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
-import { getStudentId, nextMakeupState, toAssignmentJson, type AssignmentRow } from "../../_lib/assignments";
+import { nextMakeupState, toAssignmentJson, type AssignmentRow } from "../../_lib/assignments";
 import { getFullRewardSettings, syncAssignmentRewardTransaction } from "../../_lib/rewards";
+import { resolveStudentId } from "../../_lib/students";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -14,9 +15,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const user = await getSessionUser(context.env.DB, context.request);
   if (!user) return json({ error: "Not authenticated" }, 401);
 
+  const resolved = await resolveStudentId(context.env.DB, user, context.request);
+  if ("error" in resolved) return json({ error: resolved.error }, resolved.status);
+
   const { results } = await context.env.DB
-    .prepare("SELECT * FROM assignments WHERE family_id = ? ORDER BY due_date ASC")
-    .bind(user.familyId)
+    .prepare("SELECT * FROM assignments WHERE family_id = ? AND student_id = ? ORDER BY due_date ASC")
+    .bind(user.familyId, resolved.studentId)
     .all<AssignmentRow>();
 
   return json(results.map(toAssignmentJson), 200);
@@ -55,8 +59,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (!VALID_TYPES.has(type)) return json({ error: "Invalid type" }, 400);
   if (!VALID_STATUSES.has(status)) return json({ error: "Invalid status" }, 400);
 
-  const studentId = await getStudentId(context.env.DB, user.familyId);
-  if (!studentId) return json({ error: "No student found for this family" }, 400);
+  const resolved = await resolveStudentId(context.env.DB, user, context.request);
+  if ("error" in resolved) return json({ error: resolved.error }, resolved.status);
+  const { studentId } = resolved;
 
   const settings = await getFullRewardSettings(context.env.DB, user.familyId);
   const makeup = nextMakeupState({ deadline: null }, status, grade, settings.passingThreshold, settings.makeupWindowDays, new Date());

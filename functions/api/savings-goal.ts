@@ -1,6 +1,6 @@
 import type { Env } from "../_lib/env";
 import { getSessionUser } from "../_lib/session";
-import { getStudentId } from "../_lib/assignments";
+import { resolveStudentId } from "../_lib/students";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -16,8 +16,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const user = await getSessionUser(context.env.DB, context.request);
   if (!user) return json({ error: "Not authenticated" }, 401);
 
-  const studentId = await getStudentId(context.env.DB, user.familyId);
-  if (!studentId) return json(null, 200);
+  const resolved = await resolveStudentId(context.env.DB, user, context.request);
+  if ("error" in resolved) return json({ error: resolved.error }, resolved.status);
+  const { studentId } = resolved;
 
   const row = await context.env.DB
     .prepare("SELECT id, name, target_amount FROM savings_goals WHERE student_id = ? ORDER BY created_at DESC LIMIT 1")
@@ -36,8 +37,9 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
   const user = await getSessionUser(context.env.DB, context.request);
   if (!user) return json({ error: "Not authenticated" }, 401);
 
-  const studentId = await getStudentId(context.env.DB, user.familyId);
-  if (!studentId) return json({ error: "No student found for this family" }, 400);
+  const resolved = await resolveStudentId(context.env.DB, user, context.request);
+  if ("error" in resolved) return json({ error: resolved.error }, resolved.status);
+  const { studentId } = resolved;
 
   let body: PutBody;
   try {

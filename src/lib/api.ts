@@ -10,6 +10,21 @@ async function parseJsonOrThrow(res: Response): Promise<unknown> {
   return data;
 }
 
+/**
+ * Which student a parent is currently looking at. Appended as `?studentId=` to
+ * every student-scoped request; the server validates it against the parent's
+ * family. Students never set this (the server scopes them to themselves).
+ */
+let activeStudentId: string | null = null;
+
+export function setActiveStudent(id: string | null): void {
+  activeStudentId = id;
+}
+
+function scoped(url: string): string {
+  return activeStudentId ? `${url}?studentId=${encodeURIComponent(activeStudentId)}` : url;
+}
+
 export async function fetchCurrentUser(): Promise<AuthUser | null> {
   const res = await fetch("/api/auth/me");
   if (res.status === 401) return null;
@@ -48,13 +63,13 @@ export interface AssignmentInput {
 }
 
 export async function fetchAssignments(): Promise<Assignment[]> {
-  const res = await fetch("/api/assignments");
+  const res = await fetch(scoped("/api/assignments"));
   const data = (await parseJsonOrThrow(res)) as AssignmentApiRow[];
   return data.map(fromApiRow);
 }
 
 export async function createAssignment(input: AssignmentInput): Promise<Assignment> {
-  const res = await fetch("/api/assignments", {
+  const res = await fetch(scoped("/api/assignments"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -92,7 +107,7 @@ export interface RewardSummary {
 }
 
 export async function fetchRewardSummary(): Promise<RewardSummary> {
-  const res = await fetch("/api/rewards/summary");
+  const res = await fetch(scoped("/api/rewards/summary"));
   return (await parseJsonOrThrow(res)) as RewardSummary;
 }
 
@@ -106,7 +121,7 @@ export interface RewardTransaction {
 }
 
 export async function fetchRewardTransactions(): Promise<RewardTransaction[]> {
-  const res = await fetch("/api/rewards/transactions");
+  const res = await fetch(scoped("/api/rewards/transactions"));
   return (await parseJsonOrThrow(res)) as RewardTransaction[];
 }
 
@@ -120,7 +135,7 @@ export interface PayoutRequestRow {
 }
 
 export async function fetchPayouts(): Promise<PayoutRequestRow[]> {
-  const res = await fetch("/api/payouts");
+  const res = await fetch(scoped("/api/payouts"));
   return (await parseJsonOrThrow(res)) as PayoutRequestRow[];
 }
 
@@ -139,12 +154,12 @@ export async function resolvePayout(id: string, action: "approve" | "deny"): Pro
 }
 
 export async function fetchSavingsGoal(): Promise<SavingsGoal | null> {
-  const res = await fetch("/api/savings-goal");
+  const res = await fetch(scoped("/api/savings-goal"));
   return (await parseJsonOrThrow(res)) as SavingsGoal | null;
 }
 
 export async function saveSavingsGoal(goal: SavingsGoal): Promise<SavingsGoal> {
-  const res = await fetch("/api/savings-goal", {
+  const res = await fetch(scoped("/api/savings-goal"), {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(goal),
@@ -183,6 +198,7 @@ export interface PasswordResetResult {
   userId: string;
   name: string;
   email: string;
+  role?: "parent" | "student";
   password: string;
 }
 
@@ -195,11 +211,11 @@ export async function resetUserPassword(userId: string): Promise<PasswordResetRe
   return (await parseJsonOrThrow(res)) as PasswordResetResult;
 }
 
-export async function addParentAccount(name: string, email: string): Promise<PasswordResetResult> {
+export async function addAccount(role: "parent" | "student", name: string, email: string): Promise<PasswordResetResult> {
   const res = await fetch("/api/users", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, email }),
+    body: JSON.stringify({ role, name, email }),
   });
   return (await parseJsonOrThrow(res)) as PasswordResetResult;
 }

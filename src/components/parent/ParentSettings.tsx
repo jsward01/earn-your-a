@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import type { AuthUser, RewardSettings } from "../../types";
-import { addParentAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
+import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
 
 interface ParentSettingsProps {
   user: AuthUser;
+  onStudentAdded: () => void;
 }
 
 const DEFAULT_SETTINGS: RewardSettings = {
@@ -40,7 +41,7 @@ const PAYOUT_SCHEDULES: { val: RewardSettings["payoutSchedule"]; label: string }
   { val: "manual", label: "Parent Initiated Only" },
 ];
 
-export function ParentSettings({ user }: ParentSettingsProps) {
+export function ParentSettings({ user, onStudentAdded }: ParentSettingsProps) {
   const [settings, setSettings] = useState<RewardSettings>(DEFAULT_SETTINGS);
   const [accounts, setAccounts] = useState<FamilyAccount[]>([]);
   const [resettingId, setResettingId] = useState<string | null>(null);
@@ -49,7 +50,7 @@ export function ParentSettings({ user }: ParentSettingsProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [showAddParent, setShowAddParent] = useState(false);
+  const [addRole, setAddRole] = useState<"parent" | "student" | null>(null);
   const [addName, setAddName] = useState("");
   const [addEmail, setAddEmail] = useState("");
   const [adding, setAdding] = useState(false);
@@ -70,18 +71,20 @@ export function ParentSettings({ user }: ParentSettingsProps) {
     fetchRewardSettings().then(setSettings).catch(err => console.error("Failed to load reward settings", err));
   }, []);
 
-  async function handleAddParent() {
+  async function handleAddAccount() {
+    if (!addRole) return;
     setAdding(true);
     setAddError(null);
     try {
-      const result = await addParentAccount(addName.trim(), addEmail.trim());
+      const result = await addAccount(addRole, addName.trim(), addEmail.trim());
       setAddResult(result);
       setAddName("");
       setAddEmail("");
-      setShowAddParent(false);
+      setAddRole(null);
       loadAccounts();
+      if (addRole === "student") onStudentAdded();
     } catch (e) {
-      setAddError(e instanceof Error ? e.message : "Failed to add parent account");
+      setAddError(e instanceof Error ? e.message : `Failed to add ${addRole} account`);
     } finally {
       setAdding(false);
     }
@@ -145,12 +148,17 @@ export function ParentSettings({ user }: ParentSettingsProps) {
           );
         })}
         {user.isAdmin && (
-          <button
-            onClick={() => { setShowAddParent(true); setAddError(null); }}
-            className="w-full text-sm text-indigo-600 font-medium border border-dashed border-indigo-200 rounded-xl py-2.5 mt-1"
-          >
-            + Add Parent Account
-          </button>
+          <div className="flex gap-2 mt-1">
+            {(["parent", "student"] as const).map(role => (
+              <button
+                key={role}
+                onClick={() => { setAddRole(role); setAddError(null); }}
+                className="flex-1 text-sm text-indigo-600 font-medium border border-dashed border-indigo-200 rounded-xl py-2.5"
+              >
+                + Add {role === "parent" ? "Parent" : "Student"} Account
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
@@ -234,10 +242,10 @@ export function ParentSettings({ user }: ParentSettingsProps) {
         </div>
       )}
 
-      {showAddParent && (
+      {addRole && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <div className="bg-white w-full max-w-md rounded-3xl p-6 space-y-4">
-            <h2 className="text-lg font-bold text-gray-800">Add Parent Account</h2>
+            <h2 className="text-lg font-bold text-gray-800">Add {addRole === "parent" ? "Parent" : "Student"} Account</h2>
             {addError && <p className="text-sm text-red-500">{addError}</p>}
             <input
               placeholder="Name"
@@ -253,13 +261,13 @@ export function ParentSettings({ user }: ParentSettingsProps) {
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />
             <button
-              onClick={handleAddParent}
+              onClick={handleAddAccount}
               disabled={adding || !addName.trim() || !addEmail.trim()}
               className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40"
             >
-              {adding ? "Adding…" : "Add Parent"}
+              {adding ? "Adding…" : `Add ${addRole === "parent" ? "Parent" : "Student"}`}
             </button>
-            <button onClick={() => setShowAddParent(false)} className="w-full text-gray-400 text-sm">Cancel</button>
+            <button onClick={() => setAddRole(null)} className="w-full text-gray-400 text-sm">Cancel</button>
           </div>
         </div>
       )}
@@ -267,10 +275,10 @@ export function ParentSettings({ user }: ParentSettingsProps) {
       {addResult && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
           <div className="bg-white w-full max-w-md rounded-3xl p-6 space-y-4">
-            <h2 className="text-lg font-bold text-gray-800">Parent Account Created</h2>
+            <h2 className="text-lg font-bold text-gray-800">{addResult.role === "student" ? "Student" : "Parent"} Account Created</h2>
             <p className="text-sm text-gray-500">
               Temporary password for <span className="font-semibold">{addResult.name}</span> ({addResult.email}).
-              Write it down now — it won't be shown again. They should log in and set their own password from Settings.
+              Write it down now — it won't be shown again. They should log in and set their own password{addResult.role === "student" ? " from their Profile tab" : " from Settings"}.
             </p>
             <div className="bg-indigo-50 rounded-2xl p-4 text-center">
               <p className="text-2xl font-bold text-indigo-700 tracking-wide font-mono">{addResult.password}</p>

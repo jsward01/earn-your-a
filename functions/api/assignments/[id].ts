@@ -28,7 +28,7 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
     .prepare("SELECT * FROM assignments WHERE id = ? AND family_id = ?")
     .bind(id, user.familyId)
     .first<AssignmentRow>();
-  if (!existing) return json({ error: "Not found" }, 404);
+  if (!existing || (user.role === "student" && existing.student_id !== user.id)) return json({ error: "Not found" }, 404);
 
   let body: PatchBody;
   try {
@@ -82,10 +82,10 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
 
   const id = String(context.params.id);
   const existing = await context.env.DB
-    .prepare("SELECT id FROM assignments WHERE id = ? AND family_id = ?")
+    .prepare("SELECT id, student_id FROM assignments WHERE id = ? AND family_id = ?")
     .bind(id, user.familyId)
-    .first<{ id: string }>();
-  if (!existing) return json({ error: "Not found" }, 404);
+    .first<{ id: string; student_id: string }>();
+  if (!existing || (user.role === "student" && existing.student_id !== user.id)) return json({ error: "Not found" }, 404);
 
   await context.env.DB.prepare("DELETE FROM reward_transactions WHERE assignment_id = ?").bind(id).run();
   await context.env.DB.prepare("DELETE FROM assignments WHERE id = ?").bind(id).run();

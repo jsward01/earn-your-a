@@ -30,24 +30,28 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   );
 };
 
-interface AddParentBody {
+interface AddAccountBody {
   name?: string;
   email?: string;
+  role?: "parent" | "student";
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const user = await getSessionUser(context.env.DB, context.request);
   if (!user) return json({ error: "Not authenticated" }, 401);
   if (user.role !== "parent" || !user.isAdmin) {
-    return json({ error: "Only the family admin can add a parent account" }, 403);
+    return json({ error: "Only the family admin can add accounts" }, 403);
   }
 
-  let body: AddParentBody;
+  let body: AddAccountBody;
   try {
     body = await context.request.json();
   } catch {
     return json({ error: "Invalid request body" }, 400);
   }
+
+  const role = body.role ?? "parent";
+  if (role !== "parent" && role !== "student") return json({ error: "role must be 'parent' or 'student'" }, 400);
 
   const name = body.name?.trim();
   const email = body.email?.trim().toLowerCase();
@@ -61,10 +65,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const passwordHash = await hashPassword(tempPassword);
 
   await context.env.DB.prepare(
-    "INSERT INTO users (id, family_id, role, name, email, password_hash, is_admin) VALUES (?, ?, 'parent', ?, ?, ?, 0)",
+    "INSERT INTO users (id, family_id, role, name, email, password_hash, is_admin) VALUES (?, ?, ?, ?, ?, ?, 0)",
   )
-    .bind(id, user.familyId, name, email, passwordHash)
+    .bind(id, user.familyId, role, name, email, passwordHash)
     .run();
 
-  return json({ userId: id, name, email, password: tempPassword }, 200);
+  return json({ userId: id, name, email, role, password: tempPassword }, 200);
 };

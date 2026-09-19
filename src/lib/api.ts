@@ -98,6 +98,7 @@ export async function deleteAssignment(id: string): Promise<void> {
 export interface RewardSummary {
   studentId: string;
   studentName: string;
+  studentAvatar: string | null;
   balance: number;
   holdback: number;
   available: number;
@@ -187,6 +188,7 @@ export interface FamilyAccount {
   role: "parent" | "student";
   email: string;
   isAdmin: boolean;
+  avatar: string | null;
 }
 
 export async function fetchFamilyAccounts(): Promise<FamilyAccount[]> {
@@ -227,4 +229,13 @@ export async function generateAssignmentPlan(form: AssignmentPlanForm): Promise<
     body: JSON.stringify(form),
   });
   return (await parseJsonOrThrow(res)) as AssignmentPlan;
+}
+
+export async function setStudentAvatar(userId: string, avatar: string | null): Promise<void> {
+  const res = await fetch(`/api/users/${encodeURIComponent(userId)}/avatar`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ avatar }),
+  });
+  await parseJsonOrThrow(res);
 }

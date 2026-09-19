@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import type { AuthUser, RewardSettings } from "../../types";
 import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
+import { Avatar } from "../shared/Avatar";
+import { AvatarPicker } from "./AvatarPicker";
 
 interface ParentSettingsProps {
   user: AuthUser;
-  onStudentAdded: () => void;
+  /** Called after the student list or a student's details change (added, new picture). */
+  onStudentsChanged: () => void;
 }
 
 const DEFAULT_SETTINGS: RewardSettings = {
@@ -41,7 +44,7 @@ const PAYOUT_SCHEDULES: { val: RewardSettings["payoutSchedule"]; label: string }
   { val: "manual", label: "Parent Initiated Only" },
 ];
 
-export function ParentSettings({ user, onStudentAdded }: ParentSettingsProps) {
+export function ParentSettings({ user, onStudentsChanged }: ParentSettingsProps) {
   const [settings, setSettings] = useState<RewardSettings>(DEFAULT_SETTINGS);
   const [accounts, setAccounts] = useState<FamilyAccount[]>([]);
   const [resettingId, setResettingId] = useState<string | null>(null);
@@ -56,6 +59,7 @@ export function ParentSettings({ user, onStudentAdded }: ParentSettingsProps) {
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addResult, setAddResult] = useState<PasswordResetResult | null>(null);
+  const [pickingFor, setPickingFor] = useState<FamilyAccount | null>(null);
 
   function update<K extends keyof RewardSettings>(key: K, val: RewardSettings[K]) {
     setSettings({ ...settings, [key]: val });
@@ -82,7 +86,7 @@ export function ParentSettings({ user, onStudentAdded }: ParentSettingsProps) {
       setAddEmail("");
       setAddRole(null);
       loadAccounts();
-      if (addRole === "student") onStudentAdded();
+      if (addRole === "student") onStudentsChanged();
     } catch (e) {
       setAddError(e instanceof Error ? e.message : `Failed to add ${addRole} account`);
     } finally {
@@ -127,13 +131,21 @@ export function ParentSettings({ user, onStudentAdded }: ParentSettingsProps) {
         {accounts.map(a => {
           const canReset = a.id !== user.id && (a.role === "student" || user.isAdmin);
           return (
-            <div key={a.id} className="flex items-center justify-between">
-              <div>
+            <div key={a.id} className="flex items-center justify-between gap-3">
+              {a.role === "student" ? (
+                <button onClick={() => setPickingFor(a)} className="relative shrink-0" aria-label={`Change ${a.name}'s picture`}>
+                  <Avatar avatar={a.avatar} name={a.name} size={44} />
+                  <span className="absolute -bottom-0.5 -right-0.5 bg-white border border-gray-200 rounded-full w-5 h-5 text-[10px] flex items-center justify-center">✏️</span>
+                </button>
+              ) : (
+                <Avatar avatar={null} name={a.name} size={44} muted />
+              )}
+              <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-700">
                   {a.name} <span className="text-xs text-gray-400 capitalize">({a.role})</span>
                   {a.isAdmin && <span className="ml-1 text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold">Admin</span>}
                 </p>
-                <p className="text-xs text-gray-400">{a.email}</p>
+                <p className="text-xs text-gray-400 truncate">{a.email}</p>
               </div>
               {canReset && (
                 <button
@@ -220,6 +232,14 @@ export function ParentSettings({ user, onStudentAdded }: ParentSettingsProps) {
       >
         {saving ? "Saving…" : saved ? "✓ Saved!" : "Save Settings"}
       </button>
+
+      {pickingFor && (
+        <AvatarPicker
+          student={pickingFor}
+          onClose={() => setPickingFor(null)}
+          onSaved={() => { loadAccounts(); onStudentsChanged(); }}
+        />
+      )}
 
       {resetResult && (
         <div className="fixed inset-0 bg-black/40 flex items-end z-50">

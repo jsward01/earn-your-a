@@ -15,7 +15,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if ("error" in resolved) return json({ error: resolved.error }, resolved.status);
   const { studentId } = resolved;
 
-  const studentRow = await context.env.DB.prepare("SELECT name FROM users WHERE id = ?").bind(studentId).first<{ name: string }>();
+  const studentRow = await context.env.DB.prepare("SELECT name, avatar FROM users WHERE id = ?").bind(studentId).first<{ name: string; avatar: string | null }>();
   const settings = await getFullRewardSettings(context.env.DB, user.familyId);
   const balance = await getBalance(context.env.DB, studentId);
   const available = Math.max(0, balance - settings.holdback);
@@ -29,6 +29,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     {
       studentId,
       studentName: studentRow?.name ?? "Student",
+      studentAvatar: studentRow?.avatar ?? null,
       balance,
       holdback: settings.holdback,
       available,

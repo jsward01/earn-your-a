@@ -1,4 +1,5 @@
 import logo from "../assets/logo.png";
+import { Avatar } from "./shared/Avatar";
 
 export interface StudentOption {
   id: string;
@@ -8,6 +9,8 @@ export interface StudentOption {
 interface AppHeaderProps {
   isParent: boolean;
   totalEarned: number;
+  /** The student whose balance is shown (the parent's selected student, or the student themself). */
+  viewedStudent: { name: string; avatar: string | null } | null;
   payoutPending: boolean;
   students: StudentOption[];
   selectedStudentId: string | null;
@@ -15,17 +18,18 @@ interface AppHeaderProps {
   onLogout: () => void;
 }
 
-export function AppHeader({ isParent, totalEarned, payoutPending, students, selectedStudentId, onSelectStudent, onLogout }: AppHeaderProps) {
+export function AppHeader({ isParent, totalEarned, viewedStudent, payoutPending, students, selectedStudentId, onSelectStudent, onLogout }: AppHeaderProps) {
   const showSwitcher = isParent && students.length > 1;
   const selected = students.find(s => s.id === selectedStudentId);
 
   return (
     <div className={`${isParent ? "bg-emerald-700" : "bg-indigo-600"} text-white px-4 py-4 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_1fr] items-center gap-y-3 shadow-lg`}>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 min-w-0">
         <img src={logo} alt="Earn Your A" className="h-14 drop-shadow" />
+        {/* On phones the row is too tight for the label; the logo and header colour already say which dashboard this is. */}
         <p className={`${isParent ? "text-emerald-200" : "text-indigo-200"} text-xs`}>
-          {isParent ? "Parent Dashboard" : "Student Dashboard"}
-          {payoutPending && isParent && <span className="ml-2 bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full text-xs font-bold">💸 Payout Pending</span>}
+          <span className="hidden sm:inline">{isParent ? "Parent Dashboard" : "Student Dashboard"}</span>
+          {payoutPending && isParent && <span className="sm:ml-2 bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full text-xs font-bold">💸<span className="hidden sm:inline"> Payout Pending</span></span>}
         </p>
       </div>
 
@@ -43,6 +47,7 @@ export function AppHeader({ isParent, totalEarned, payoutPending, students, sele
       )}
 
       <div className="flex items-center gap-2 justify-self-end sm:col-start-3 sm:row-start-1">
+        {viewedStudent && <Avatar avatar={viewedStudent.avatar} name={viewedStudent.name} size={44} className="ring-2 ring-white/60" />}
         <div className={`${isParent ? "bg-emerald-800" : "bg-indigo-700"} rounded-xl px-3 py-2 text-center`}>
           <p className={`${isParent ? "text-emerald-300" : "text-indigo-300"} text-xs`}>
             {showSwitcher && selected ? `${selected.name.split(" ")[0]}'s Balance` : "Balance"}

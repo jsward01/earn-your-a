@@ -145,6 +145,7 @@ export default function App() {
       <AppHeader
         isParent={isParent}
         totalEarned={totalEarned}
+        viewedStudent={summary ? { name: summary.studentName, avatar: summary.studentAvatar } : null}
         payoutPending={payoutPending}
         students={students}
         selectedStudentId={selectedStudentId}
@@ -170,7 +171,7 @@ export default function App() {
         {!isParent && view === "profile" && <StudentProfile name={user.name} />}
         {isParent && view === "dashboard" && <ParentOverview assignments={assignments} summary={summary} onChanged={refreshSummary} />}
         {isParent && view === "assignments" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} onChanged={refreshSummary} />}
-        {isParent && view === "settings" && <ParentSettings user={user} onStudentAdded={loadStudents} />}
+        {isParent && view === "settings" && <ParentSettings user={user} onStudentsChanged={() => { loadStudents(); refreshSummary(); }} />}
       </div>
 
       <BottomNav navs={navs} view={view} isParent={isParent} payoutPending={payoutPending} onSelect={setView} />

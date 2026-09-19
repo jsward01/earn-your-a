@@ -121,6 +121,11 @@ export function ParentSettings({ user, onStudentsChanged }: ParentSettingsProps)
     }
   }
 
+  const byName = (a: FamilyAccount, b: FamilyAccount) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  // Admin is always first among parents; everyone else (and all students) alphabetical.
+  const parents = accounts.filter(a => a.role === "parent").sort((a, b) => Number(b.isAdmin) - Number(a.isAdmin) || byName(a, b));
+  const students = accounts.filter(a => a.role === "student").sort(byName);
+
   return (
     <div className="pb-4 px-4 pt-4 space-y-4">
       <ChangePasswordCard />
@@ -128,50 +133,56 @@ export function ParentSettings({ user, onStudentsChanged }: ParentSettingsProps)
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
         <p className="text-xs text-gray-400 font-medium">ACCOUNT ACCESS</p>
         {resetError && <p className="text-sm text-red-500">{resetError}</p>}
-        {accounts.map(a => {
-          const canReset = a.id !== user.id && (a.role === "student" || user.isAdmin);
-          return (
-            <div key={a.id} className="flex items-center justify-between gap-3">
-              {a.role === "student" ? (
-                <button onClick={() => setPickingFor(a)} className="relative shrink-0" aria-label={`Change ${a.name}'s picture`}>
-                  <Avatar avatar={a.avatar} name={a.name} size={44} />
-                  <span className="absolute -bottom-0.5 -right-0.5 bg-white border border-gray-200 rounded-full w-5 h-5 text-[10px] flex items-center justify-center">✏️</span>
-                </button>
-              ) : (
-                <Avatar avatar={null} name={a.name} size={44} muted />
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-700">
-                  {a.name} <span className="text-xs text-gray-400 capitalize">({a.role})</span>
-                  {a.isAdmin && <span className="ml-1 text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold">Admin</span>}
-                </p>
-                <p className="text-xs text-gray-400 truncate">{a.email}</p>
-              </div>
-              {canReset && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+          {([
+            { role: "parent", title: "Parents", people: parents, empty: "No parent accounts." },
+            { role: "student", title: "Students", people: students, empty: "No students yet." },
+          ] as const).map(col => (
+            <div key={col.role} className="space-y-3">
+              <p className="text-sm font-semibold text-gray-700 border-b border-gray-100 pb-1">{col.title}</p>
+              {col.people.length === 0 && <p className="text-xs text-gray-400">{col.empty}</p>}
+              {col.people.map(a => {
+                const canReset = a.id !== user.id && (a.role === "student" || user.isAdmin);
+                return (
+                  <div key={a.id} className="flex items-start gap-3">
+                    {a.role === "student" ? (
+                      <button onClick={() => setPickingFor(a)} className="relative shrink-0" aria-label={`Change ${a.name}'s picture`}>
+                        <Avatar avatar={a.avatar} name={a.name} size={44} />
+                        <span className="absolute -bottom-0.5 -right-0.5 bg-white border border-gray-200 rounded-full w-5 h-5 text-[10px] flex items-center justify-center">✏️</span>
+                      </button>
+                    ) : (
+                      <Avatar avatar={null} name={a.name} size={44} muted />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-700">
+                        {a.name}
+                        {a.isAdmin && <span className="ml-1 text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold">Admin</span>}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">{a.email}</p>
+                      {canReset && (
+                        <button
+                          onClick={() => handleReset(a.id)}
+                          disabled={resettingId === a.id}
+                          className="mt-1.5 text-xs bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg font-medium disabled:opacity-40"
+                        >
+                          {resettingId === a.id ? "Resetting…" : "Reset Password"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {user.isAdmin && (
                 <button
-                  onClick={() => handleReset(a.id)}
-                  disabled={resettingId === a.id}
-                  className="text-xs bg-indigo-50 text-indigo-700 px-3 py-2 rounded-lg font-medium disabled:opacity-40"
+                  onClick={() => { setAddRole(col.role); setAddError(null); }}
+                  className="w-full text-sm text-indigo-600 font-medium border border-dashed border-indigo-200 rounded-xl py-2.5"
                 >
-                  {resettingId === a.id ? "Resetting…" : "Reset Password"}
+                  + Add {col.role === "parent" ? "Parent" : "Student"} Account
                 </button>
               )}
             </div>
-          );
-        })}
-        {user.isAdmin && (
-          <div className="flex gap-2 mt-1">
-            {(["parent", "student"] as const).map(role => (
-              <button
-                key={role}
-                onClick={() => { setAddRole(role); setAddError(null); }}
-                className="flex-1 text-sm text-indigo-600 font-medium border border-dashed border-indigo-200 rounded-xl py-2.5"
-              >
-                + Add {role === "parent" ? "Parent" : "Student"} Account
-              </button>
-            ))}
-          </div>
-        )}
+          ))}
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">

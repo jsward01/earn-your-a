@@ -17,6 +17,17 @@ type Tab = (typeof TABS)[number];
 
 const EMPTY_FORM: NewAssignmentForm = { title: "", subject: "Math", type: "assignment", dueDate: "" };
 
+const FIELD = "w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="block text-xs font-medium text-gray-500 mb-1">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 export function StudentDashboard({ assignments, setAssignments, onChanged }: StudentDashboardProps) {
   const rules = useRewardSettings();
   const [activeTab, setActiveTab] = useState<Tab>("all");
@@ -171,16 +182,24 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
         <button onClick={() => setShowAddModal(true)} className="bg-indigo-600 text-white w-14 h-14 rounded-full shadow-xl text-2xl flex items-center justify-center">+</button>
       </div>
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
-          <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
-            <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Add Assignment</h2><button onClick={() => setShowAddModal(false)} className="text-gray-400 text-xl">✕</button></div>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white w-full max-w-md max-h-full overflow-y-auto rounded-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Add Assignment</h2><button onClick={() => setShowAddModal(false)} className="text-gray-400 text-xl" aria-label="Close">✕</button></div>
             {error && <p className="text-sm text-red-500">{error}</p>}
-            <input className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="Assignment title" value={newA.title} onChange={e => setNewA({ ...newA, title: e.target.value })} />
+            <Field label="Title">
+              <input className={FIELD} placeholder="Assignment title" value={newA.title} onChange={e => setNewA({ ...newA, title: e.target.value })} />
+            </Field>
             <div className="grid grid-cols-2 gap-3">
-              <select className="border border-gray-200 rounded-xl px-4 py-3 text-sm" value={newA.subject} onChange={e => setNewA({ ...newA, subject: e.target.value })}>{SUBJECTS.map(s => <option key={s}>{s}</option>)}</select>
-              <select className="border border-gray-200 rounded-xl px-4 py-3 text-sm" value={newA.type} onChange={e => setNewA({ ...newA, type: e.target.value as NewAssignmentForm["type"] })}><option value="assignment">Assignment</option><option value="quiz">Quiz</option><option value="test">Test</option></select>
+              <Field label="Subject">
+                <select className={FIELD} value={newA.subject} onChange={e => setNewA({ ...newA, subject: e.target.value })}>{SUBJECTS.map(s => <option key={s}>{s}</option>)}</select>
+              </Field>
+              <Field label="Type">
+                <select className={FIELD} value={newA.type} onChange={e => setNewA({ ...newA, type: e.target.value as NewAssignmentForm["type"] })}><option value="assignment">Assignment</option><option value="quiz">Quiz</option><option value="test">Test</option></select>
+              </Field>
             </div>
-            <input type="date" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" value={newA.dueDate} onChange={e => setNewA({ ...newA, dueDate: e.target.value })} />
+            <Field label="Due Date">
+              <input type="date" className={FIELD} value={newA.dueDate} onChange={e => setNewA({ ...newA, dueDate: e.target.value })} />
+            </Field>
             <p className="text-xs text-gray-400">A parent enters grades once your work is turned in.</p>
             <button onClick={handleAdd} disabled={!newA.title || !newA.dueDate || saving} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{saving ? "Saving…" : "Add Assignment"}</button>
           </div>
@@ -196,12 +215,20 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
             {error && <p className="text-sm text-red-500">{error}</p>}
             {editing.status === "pending" ? (
               <>
-                <input className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="Assignment title" value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} />
+                <Field label="Title">
+                  <input className={FIELD} placeholder="Assignment title" value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} />
+                </Field>
                 <div className="grid grid-cols-2 gap-3">
-                  <select className="border border-gray-200 rounded-xl px-4 py-3 text-sm" value={editForm.subject} onChange={e => setEditForm({ ...editForm, subject: e.target.value })}>{[...new Set([...SUBJECTS, editForm.subject])].map(s => <option key={s}>{s}</option>)}</select>
-                  <select className="border border-gray-200 rounded-xl px-4 py-3 text-sm" value={editForm.type} onChange={e => setEditForm({ ...editForm, type: e.target.value as NewAssignmentForm["type"] })}><option value="assignment">Assignment</option><option value="quiz">Quiz</option><option value="test">Test</option></select>
+                  <Field label="Subject">
+                    <select className={FIELD} value={editForm.subject} onChange={e => setEditForm({ ...editForm, subject: e.target.value })}>{[...new Set([...SUBJECTS, editForm.subject])].map(s => <option key={s}>{s}</option>)}</select>
+                  </Field>
+                  <Field label="Type">
+                    <select className={FIELD} value={editForm.type} onChange={e => setEditForm({ ...editForm, type: e.target.value as NewAssignmentForm["type"] })}><option value="assignment">Assignment</option><option value="quiz">Quiz</option><option value="test">Test</option></select>
+                  </Field>
                 </div>
-                <input type="date" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" value={editForm.dueDate} onChange={e => setEditForm({ ...editForm, dueDate: e.target.value })} />
+                <Field label="Due Date">
+                  <input type="date" className={FIELD} value={editForm.dueDate} onChange={e => setEditForm({ ...editForm, dueDate: e.target.value })} />
+                </Field>
                 <button onClick={handleSaveEdit} disabled={!editForm.title.trim() || !editForm.dueDate || saving} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{saving ? "Saving…" : "Save Changes"}</button>
                 <button onClick={handleDelete} disabled={saving} className="w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm disabled:opacity-40">Delete Assignment</button>
               </>

@@ -14,7 +14,7 @@ export function StudentProfile({ name }: StudentProfileProps) {
   return (
     <div className="pb-4 px-4 pt-4 space-y-4">
       <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl p-6 text-white text-center shadow-lg">
-        <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-3xl mx-auto mb-3">👩‍🎓</div>
+        <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl mx-auto mb-3">👩‍🎓</div>
         <p className="text-xl font-bold">{name}</p>
         <p className="text-indigo-200 text-sm">Student</p>
       </div>

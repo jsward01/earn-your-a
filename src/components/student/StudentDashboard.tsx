@@ -170,7 +170,7 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
         <button onClick={() => setShowAddModal(true)} className="bg-indigo-600 text-white w-14 h-14 rounded-full shadow-xl text-2xl flex items-center justify-center">+</button>
       </div>
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
           <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
             <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Add Assignment</h2><button onClick={() => setShowAddModal(false)} className="text-gray-400 text-xl">✕</button></div>
             {error && <p className="text-sm text-red-500">{error}</p>}
@@ -189,7 +189,7 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
         </div>
       )}
       {editing && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
           <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold">{editing.title}</h2>

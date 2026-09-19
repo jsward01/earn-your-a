@@ -41,7 +41,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           placeholder="Email"
           value={email}
           onChange={e => setEmail(e.target.value)}
-          className="w-full bg-white bg-opacity-95 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white"
+          className="w-full bg-white/95 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white"
         />
         <input
           type="password"
@@ -49,7 +49,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
           placeholder="Password"
           value={password}
           onChange={e => setPassword(e.target.value)}
-          className="w-full bg-white bg-opacity-95 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white"
+          className="w-full bg-white/95 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-white"
         />
         {error && <p className="text-red-200 text-sm text-center">{error}</p>}
         <button
@@ -68,7 +68,7 @@ export function LoginScreen({ onLogin }: LoginScreenProps) {
         </button>
       </form>
       {showHelp && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
           <div className="bg-white w-full max-w-sm rounded-t-3xl p-6 space-y-4">
             <h2 className="text-lg font-bold text-gray-800">Forgot password or username?</h2>
             <p className="text-sm text-gray-500">

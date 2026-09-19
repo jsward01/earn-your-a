@@ -147,7 +147,7 @@ export function AIBreakdown() {
                 <p className="text-violet-200 text-xs mt-1">Due {form.dueDate} • ~{plan.estimatedHours}h total</p>
               </div>
               <button onClick={() => setStep("form")}
-                className="bg-white bg-opacity-20 rounded-xl px-3 py-1.5 text-xs font-semibold ml-3 shrink-0">
+                className="bg-white/20 rounded-xl px-3 py-1.5 text-xs font-semibold ml-3 shrink-0">
                 New Plan
               </button>
             </div>

@@ -166,7 +166,7 @@ export function StudentRewards({ summary, onChanged }: StudentRewardsProps) {
         ))}
       </div>
       {showPayoutModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
           <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
             <h2 className="text-lg font-bold">Request Payout</h2>
             {!requested ? <>
@@ -188,7 +188,7 @@ export function StudentRewards({ summary, onChanged }: StudentRewardsProps) {
         </div>
       )}
       {showGoalModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
           <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
             <h2 className="text-lg font-bold">Edit Savings Goal</h2>
             <input className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="Goal name" value={goalDraft.name} onChange={e => setGoalDraft({ ...goalDraft, name: e.target.value })} />

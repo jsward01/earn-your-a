@@ -204,7 +204,7 @@ export function ParentOverview({ assignments, summary, onChanged }: ParentOvervi
       </div>
 
       {showPayoutModal && pending && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
           <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
             {payoutAction === "approve" && <>
               <h2 className="text-lg font-bold text-gray-800">✅ Approve Payout</h2>

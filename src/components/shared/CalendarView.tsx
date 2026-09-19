@@ -122,14 +122,14 @@ export function CalendarView({ assignments, isParent }: CalendarViewProps) {
     <div className="pb-28 pt-4 space-y-4">
       <div className={`${accentBg} mx-4 rounded-3xl px-5 py-4 text-white shadow-lg`}>
         <div className="flex items-center justify-between mb-1">
-          <button onClick={prevWindow} className="w-9 h-9 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-xl font-bold">‹</button>
+          <button onClick={prevWindow} className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center text-xl font-bold">‹</button>
           <div className="text-center">
             <p className="font-bold text-lg">{headerLabel} {yearLabel}</p>
             <p className="text-xs opacity-70">2-Week School Calendar</p>
           </div>
-          <button onClick={nextWindow} className="w-9 h-9 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-xl font-bold">›</button>
+          <button onClick={nextWindow} className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center text-xl font-bold">›</button>
         </div>
-        <button onClick={goToToday} className="w-full mt-2 bg-white bg-opacity-20 rounded-xl py-1.5 text-xs font-semibold">
+        <button onClick={goToToday} className="w-full mt-2 bg-white/20 rounded-xl py-1.5 text-xs font-semibold">
           Jump to Today
         </button>
       </div>

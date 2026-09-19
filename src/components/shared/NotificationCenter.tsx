@@ -75,7 +75,7 @@ export function NotificationCenter({ assignments, isParent, payoutPending, stude
               </div>
             )}
             <button onClick={() => setShowSettings(!showSettings)}
-              className="bg-white bg-opacity-20 rounded-xl px-3 py-1.5 text-xs font-semibold">
+              className="bg-white/20 rounded-xl px-3 py-1.5 text-xs font-semibold">
               ⚙️ Settings
             </button>
           </div>
@@ -86,7 +86,7 @@ export function NotificationCenter({ assignments, isParent, payoutPending, stude
             { key: "sms", icon: "📱", label: "SMS" },
             { key: "email", icon: "📧", label: "Email" },
           ] as const).map(m => (
-            <div key={m.key} className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${notifSettings[m.key] ? "bg-white bg-opacity-25 text-white" : "bg-white bg-opacity-10 text-white opacity-40"}`}>
+            <div key={m.key} className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${notifSettings[m.key] ? "bg-white/25 text-white" : "bg-white/10 text-white opacity-40"}`}>
               <span>{m.icon}</span>{m.label} {notifSettings[m.key] ? "✓" : "off"}
             </div>
           ))}
@@ -214,7 +214,7 @@ export function NotificationCenter({ assignments, isParent, payoutPending, stude
                   </div>
                 </div>
               </div>
-              <div className="flex gap-1.5 mt-3 pt-2 border-t border-black border-opacity-5">
+              <div className="flex gap-1.5 mt-3 pt-2 border-t border-black/5">
                 <span className="text-xs text-gray-400">Sent via:</span>
                 {([{ key: "inApp", icon: "🔔" }, { key: "sms", icon: "📱" }, { key: "email", icon: "📧" }] as const).map(m => (
                   <span key={m.key} className={`text-xs ${notifSettings[m.key] ? "text-gray-500" : "text-gray-300 line-through"}`}>{m.icon}</span>

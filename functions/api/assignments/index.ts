@@ -1,6 +1,8 @@
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
-import { nextMakeupState, toAssignmentJson, type AssignmentRow } from "../../_lib/assignments";
+import { ASSIGNMENT_SELECT, getAssignmentRow, nextMakeupState, toAssignmentJson, type AssignmentRow } from "../../_lib/assignments";
+import { checkStudentCreate, gradeError, isIsoDate } from "../../_lib/assignmentEdits";
+import { recordHistory } from "../../_lib/history";
 import { getFullRewardSettings, syncAssignmentRewardTransaction } from "../../_lib/rewards";
 import { resolveStudentId } from "../../_lib/students";
 
@@ -19,7 +21,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if ("error" in resolved) return json({ error: resolved.error }, resolved.status);
 
   const { results } = await context.env.DB
-    .prepare("SELECT * FROM assignments WHERE family_id = ? AND student_id = ? ORDER BY due_date ASC")
+    .prepare(`${ASSIGNMENT_SELECT} WHERE a.family_id = ? AND a.student_id = ? ORDER BY a.due_date ASC`)
     .bind(user.familyId, resolved.studentId)
     .all<AssignmentRow>();
 
@@ -46,18 +48,27 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     return json({ error: "Invalid request body" }, 400);
   }
 
+  // Grading belongs to parents: a student can add work, but only ever as pending and ungraded.
+  if (user.role === "student") {
+    const verdict = checkStudentCreate(body);
+    if (!verdict.ok) return json({ error: verdict.error }, 403);
+  }
+
   const title = body.title?.trim();
   const subject = body.subject?.trim();
   const type = body.type ?? "assignment";
   const dueDate = body.dueDate;
-  const status = body.status ?? "pending";
-  const grade = body.grade ?? null;
+  const status = user.role === "student" ? "pending" : (body.status ?? "pending");
+  const grade = user.role === "student" ? null : (body.grade ?? null);
 
   if (!title || !subject || !dueDate) {
     return json({ error: "title, subject, and dueDate are required" }, 400);
   }
   if (!VALID_TYPES.has(type)) return json({ error: "Invalid type" }, 400);
   if (!VALID_STATUSES.has(status)) return json({ error: "Invalid status" }, 400);
+  if (!isIsoDate(dueDate)) return json({ error: "dueDate must be YYYY-MM-DD" }, 400);
+  const gErr = gradeError(grade);
+  if (gErr) return json({ error: gErr }, 400);
 
   const resolved = await resolveStudentId(context.env.DB, user, context.request);
   if ("error" in resolved) return json({ error: resolved.error }, resolved.status);
@@ -82,6 +93,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     settings,
   );
 
-  const row = await context.env.DB.prepare("SELECT * FROM assignments WHERE id = ?").bind(id).first<AssignmentRow>();
-  return json(toAssignmentJson(row!), 201);
+  const row = (await getAssignmentRow(context.env.DB, id))!;
+  await recordHistory(context.env.DB, {
+    familyId: user.familyId,
+    assignmentId: id,
+    studentId,
+    actorId: user.id,
+    action: "create",
+    summary: `Added "${title}" (${type}, due ${dueDate})${status === "graded" ? `, graded ${grade}%` : status === "missing" ? ", marked missing" : ""}`,
+    ledgerBefore: null,
+    ledgerAfter: row.recorded_reward ?? null,
+  });
+  return json(toAssignmentJson(row), 201);
 };

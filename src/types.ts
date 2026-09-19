@@ -11,6 +11,11 @@ export interface Assignment {
   grade: number | null;
   daysLeft: number | null;
   makeupAvailable?: boolean;
+  /** What the ledger recorded for this item (null = nothing, i.e. $0). Graded cards show this, not a recomputation. */
+  recordedReward?: number | null;
+  /** Set once a payout has settled this item: archived under Past Grades, no longer editable. */
+  payoutId?: string | null;
+  paidAt?: string | null;
 }
 
 export interface RewardStatus {
@@ -80,6 +85,7 @@ export interface AuthUser {
 
 export type View =
   | "dashboard"
+  | "balance"
   | "calendar"
   | "ai"
   | "rewards"
@@ -131,8 +137,6 @@ export interface NewAssignmentForm {
   subject: string;
   type: AssignmentType;
   dueDate: string;
-  status: AssignmentStatus;
-  grade: string;
 }
 
 export type MessageSender = "parent" | "student";

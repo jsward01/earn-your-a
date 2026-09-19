@@ -90,8 +90,7 @@ describe("nextMakeupState — the 1-week makeup window", () => {
     expect(failedAgain.deadline).toBe("2026-03-19");
   });
 
-  // KNOWN GAP vs. the house rule "after 1 week, the penalty locks in permanently":
-  // nothing on the server compares `now` to an existing deadline, so a passing grade entered AFTER the
-  // window closed still reverses the penalty. Pinned down for a decision — see the note in CLAUDE.md.
-  it.todo("a passing grade entered after the makeup deadline has passed should NOT reverse the penalty");
+  // "After 1 week the penalty locks in permanently" is now enforced by payouts, not by this function: paying out
+  // archives finished work (except items whose makeup window is still open) and archived work can't be edited.
+  // See ARCHIVE_ON_PAYOUT_WHERE in assignments.ts and the payout-archive checks in CLAUDE.md.
 });

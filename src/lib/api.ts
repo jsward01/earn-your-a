@@ -58,8 +58,9 @@ export interface AssignmentInput {
   subject: string;
   type: Assignment["type"];
   dueDate: string;
-  status: Assignment["status"];
-  grade: number | null;
+  /** Parents only — the server refuses these from a student. */
+  status?: Assignment["status"];
+  grade?: number | null;
 }
 
 export async function fetchAssignments(): Promise<Assignment[]> {
@@ -86,6 +87,47 @@ export async function updateAssignment(id: string, input: Partial<AssignmentInpu
   });
   const data = (await parseJsonOrThrow(res)) as AssignmentApiRow;
   return fromApiRow(data);
+}
+
+export interface AssignmentImpact {
+  changed: boolean;
+  summary: string;
+  ledgerBefore: number | null;
+  ledgerAfter: number | null;
+  delta: number;
+  balanceBefore: number;
+  balanceAfter: number;
+}
+
+/** What saving these edits would do to the ledger and balance. Writes nothing. */
+export async function previewAssignmentUpdate(id: string, input: Partial<AssignmentInput>): Promise<AssignmentImpact> {
+  const res = await fetch(`/api/assignments/${id}?dryRun=1`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return (await parseJsonOrThrow(res)) as AssignmentImpact;
+}
+
+export interface HistoryEntry {
+  id: string;
+  assignmentId: string;
+  action: "create" | "update" | "delete";
+  summary: string;
+  ledgerBefore: number | null;
+  ledgerAfter: number | null;
+  createdAt: string;
+  actorName: string;
+  actorRole: "parent" | "student";
+}
+
+/** Parent-only. One assignment's changes, or (no id) the selected student's most recent changes. */
+export async function fetchAssignmentHistory(assignmentId?: string, limit = 30): Promise<HistoryEntry[]> {
+  const base = scoped("/api/assignment-history");
+  const q = new URLSearchParams({ limit: String(limit) });
+  if (assignmentId) q.set("assignmentId", assignmentId);
+  const res = await fetch(`${base}${base.includes("?") ? "&" : "?"}${q}`);
+  return (await parseJsonOrThrow(res)) as HistoryEntry[];
 }
 
 export async function deleteAssignment(id: string): Promise<void> {

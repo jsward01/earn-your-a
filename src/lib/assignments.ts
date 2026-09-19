@@ -10,6 +10,9 @@ export interface AssignmentApiRow {
   grade: number | null;
   makeupDeadline: string | null;
   makeupUsed: boolean;
+  recordedReward: number | null;
+  payoutId: string | null;
+  paidAt: string | null;
 }
 
 function daysUntil(dateStr: string): number {
@@ -30,5 +33,8 @@ export function fromApiRow(row: AssignmentApiRow): Assignment {
     grade: row.grade,
     daysLeft: row.makeupDeadline ? daysUntil(row.makeupDeadline) : null,
     makeupAvailable: row.makeupDeadline !== null && !row.makeupUsed,
+    recordedReward: row.recordedReward ?? null,
+    payoutId: row.payoutId ?? null,
+    paidAt: row.paidAt ?? null,
   };
 }

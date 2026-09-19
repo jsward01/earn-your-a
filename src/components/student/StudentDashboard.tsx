@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Assignment, AssignmentStatus, NewAssignmentForm } from "../../types";
+import type { Assignment, NewAssignmentForm } from "../../types";
 import { SUBJECTS } from "../../data/mockData";
 import { getRewardStatus } from "../../lib/rewards";
 import { useRewardSettings } from "../../lib/rewardSettingsContext";
@@ -15,7 +15,7 @@ interface StudentDashboardProps {
 const TABS = ["all", "pending", "graded", "missing", "makeup"] as const;
 type Tab = (typeof TABS)[number];
 
-const EMPTY_FORM: NewAssignmentForm = { title: "", subject: "Math", type: "assignment", dueDate: "", status: "pending", grade: "" };
+const EMPTY_FORM: NewAssignmentForm = { title: "", subject: "Math", type: "assignment", dueDate: "" };
 
 export function StudentDashboard({ assignments, setAssignments, onChanged }: StudentDashboardProps) {
   const rules = useRewardSettings();
@@ -26,8 +26,7 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
   const [error, setError] = useState<string | null>(null);
 
   const [editing, setEditing] = useState<Assignment | null>(null);
-  const [editStatus, setEditStatus] = useState<AssignmentStatus>("pending");
-  const [editGrade, setEditGrade] = useState("");
+  const [editForm, setEditForm] = useState<NewAssignmentForm>(EMPTY_FORM);
 
   const filtered = activeTab === "all"
     ? assignments
@@ -44,8 +43,6 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
         subject: newA.subject,
         type: newA.type,
         dueDate: newA.dueDate,
-        status: newA.status,
-        grade: newA.grade ? parseInt(newA.grade, 10) : null,
       });
       setAssignments([...assignments, created]);
       setShowAddModal(false);
@@ -60,8 +57,7 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
 
   function openEdit(a: Assignment) {
     setEditing(a);
-    setEditStatus(a.status);
-    setEditGrade(a.grade !== null ? String(a.grade) : "");
+    setEditForm({ title: a.title, subject: a.subject, type: a.type, dueDate: a.dueDate });
     setError(null);
   }
 
@@ -70,9 +66,12 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
     setSaving(true);
     setError(null);
     try {
+      // Students can only change details of pending work; grading is a parent's job (the server enforces it too).
       const updated = await updateAssignment(editing.id, {
-        status: editStatus,
-        grade: editGrade ? parseInt(editGrade, 10) : null,
+        title: editForm.title,
+        subject: editForm.subject,
+        type: editForm.type,
+        dueDate: editForm.dueDate,
       });
       setAssignments(assignments.map(a => (a.id === editing.id ? updated : a)));
       setEditing(null);
@@ -181,32 +180,42 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
               <select className="border border-gray-200 rounded-xl px-4 py-3 text-sm" value={newA.subject} onChange={e => setNewA({ ...newA, subject: e.target.value })}>{SUBJECTS.map(s => <option key={s}>{s}</option>)}</select>
               <select className="border border-gray-200 rounded-xl px-4 py-3 text-sm" value={newA.type} onChange={e => setNewA({ ...newA, type: e.target.value as NewAssignmentForm["type"] })}><option value="assignment">Assignment</option><option value="quiz">Quiz</option><option value="test">Test</option></select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input type="date" className="border border-gray-200 rounded-xl px-4 py-3 text-sm" value={newA.dueDate} onChange={e => setNewA({ ...newA, dueDate: e.target.value })} />
-              <input type="number" className="border border-gray-200 rounded-xl px-4 py-3 text-sm" placeholder="Grade % (optional)" value={newA.grade} onChange={e => setNewA({ ...newA, grade: e.target.value })} />
-            </div>
-            <select className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" value={newA.status} onChange={e => setNewA({ ...newA, status: e.target.value as NewAssignmentForm["status"] })}><option value="pending">Pending</option><option value="graded">Graded</option><option value="missing">Missing</option></select>
+            <input type="date" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" value={newA.dueDate} onChange={e => setNewA({ ...newA, dueDate: e.target.value })} />
+            <p className="text-xs text-gray-400">A parent enters grades once your work is turned in.</p>
             <button onClick={handleAdd} disabled={!newA.title || !newA.dueDate || saving} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{saving ? "Saving…" : "Add Assignment"}</button>
           </div>
         </div>
       )}
       {editing && (
-        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
-          <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white w-full max-w-md max-h-full overflow-y-auto rounded-3xl p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold">{editing.title}</h2>
+              <h2 className="text-lg font-bold">{editing.status === "pending" ? "Edit Assignment" : editing.title}</h2>
               <button onClick={() => setEditing(null)} className="text-gray-400 text-xl">✕</button>
             </div>
             {error && <p className="text-sm text-red-500">{error}</p>}
-            <p className="text-xs text-gray-400">{editing.subject} • {editing.type.charAt(0).toUpperCase() + editing.type.slice(1)} • Due {editing.dueDate}</p>
-            <select className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" value={editStatus} onChange={e => setEditStatus(e.target.value as AssignmentStatus)}>
-              <option value="pending">Pending</option>
-              <option value="graded">Graded</option>
-              <option value="missing">Missing</option>
-            </select>
-            <input type="number" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" placeholder="Grade % (optional)" value={editGrade} onChange={e => setEditGrade(e.target.value)} />
-            <button onClick={handleSaveEdit} disabled={saving} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{saving ? "Saving…" : "Save Changes"}</button>
-            <button onClick={handleDelete} disabled={saving} className="w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm disabled:opacity-40">Delete Assignment</button>
+            {editing.status === "pending" ? (
+              <>
+                <input className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="Assignment title" value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} />
+                <div className="grid grid-cols-2 gap-3">
+                  <select className="border border-gray-200 rounded-xl px-4 py-3 text-sm" value={editForm.subject} onChange={e => setEditForm({ ...editForm, subject: e.target.value })}>{[...new Set([...SUBJECTS, editForm.subject])].map(s => <option key={s}>{s}</option>)}</select>
+                  <select className="border border-gray-200 rounded-xl px-4 py-3 text-sm" value={editForm.type} onChange={e => setEditForm({ ...editForm, type: e.target.value as NewAssignmentForm["type"] })}><option value="assignment">Assignment</option><option value="quiz">Quiz</option><option value="test">Test</option></select>
+                </div>
+                <input type="date" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm" value={editForm.dueDate} onChange={e => setEditForm({ ...editForm, dueDate: e.target.value })} />
+                <button onClick={handleSaveEdit} disabled={!editForm.title.trim() || !editForm.dueDate || saving} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{saving ? "Saving…" : "Save Changes"}</button>
+                <button onClick={handleDelete} disabled={saving} className="w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm disabled:opacity-40">Delete Assignment</button>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-gray-400">{editing.subject} • {editing.type.charAt(0).toUpperCase() + editing.type.slice(1)} • Due {editing.dueDate}</p>
+                <div className="bg-gray-50 rounded-2xl p-4 text-sm text-gray-600 space-y-1">
+                  <p>Status: <span className="font-semibold capitalize">{editing.status}</span>{editing.grade !== null && <> • Grade: <span className="font-semibold">{editing.grade}%</span></>}</p>
+                  <p className={`font-semibold ${getRewardStatus(editing, rules).color}`}>{getRewardStatus(editing, rules).label}</p>
+                </div>
+                <p className="text-xs text-gray-400">Graded and missing work is locked. If something looks wrong, ask a parent to take a look.</p>
+                <button onClick={() => setEditing(null)} className="w-full bg-gray-100 text-gray-600 py-3 rounded-xl font-semibold text-sm">Close</button>
+              </>
+            )}
           </div>
         </div>
       )}

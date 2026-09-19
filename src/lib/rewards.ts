@@ -39,6 +39,9 @@ export function formatMoney(amount: number): string {
  * - Missing work earns $0 with no negative penalty (the penalty applies to
  *   graded-but-failing tests/quizzes only).
  *
+ * Graded items that carry `recordedReward` (everything from the API) use that instead of the rules below; the rules
+ * still drive previews and anything not yet recorded.
+ *
  * This is the UI's copy of the rules; the ledger's copy is `computeAssignmentReward` in
  * functions/_lib/rewards.ts. functions/_lib/rewards.parity.test.ts keeps the two in agreement.
  */
@@ -48,6 +51,18 @@ export function getRewardStatus(a: Assignment, rules: RewardRules = HOUSE_RULES)
 
   if (status === "missing") return { earned: 0, label: "Missing", color: "text-red-500" };
   if (status === "pending") return { earned: null, label: "Pending", color: "text-gray-400" };
+
+  // Graded work shows what the ledger actually recorded, so a card can never disagree with the money —
+  // even after the family changes its reward amounts or pass mark (the ledger is history; it isn't re-priced).
+  if (a.recordedReward !== undefined) {
+    const amount = a.recordedReward ?? 0;
+    if (amount > 0) return { earned: amount, label: `+$${amount.toFixed(2)}`, color: "text-green-500" };
+    if (amount < 0) {
+      if (daysLeft !== null && daysLeft > 0) return { earned: amount, label: `-$${Math.abs(amount).toFixed(2)} (Makeup Available)`, color: "text-orange-500" };
+      return { earned: amount, label: `-$${Math.abs(amount).toFixed(2)}`, color: "text-red-500" };
+    }
+    return { earned: 0, label: "$0.00", color: "text-gray-400" };
+  }
 
   if (type === "assignment") {
     if (passed) return { earned: rules.assignmentReward, label: `+$${rules.assignmentReward.toFixed(2)}`, color: "text-green-500" };

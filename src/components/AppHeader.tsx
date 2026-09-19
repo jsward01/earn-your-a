@@ -15,10 +15,11 @@ interface AppHeaderProps {
   students: StudentOption[];
   selectedStudentId: string | null;
   onSelectStudent: (id: string) => void;
+  onBalanceClick: () => void;
   onLogout: () => void;
 }
 
-export function AppHeader({ isParent, totalEarned, viewedStudent, payoutPending, students, selectedStudentId, onSelectStudent, onLogout }: AppHeaderProps) {
+export function AppHeader({ isParent, totalEarned, viewedStudent, payoutPending, students, selectedStudentId, onSelectStudent, onBalanceClick, onLogout }: AppHeaderProps) {
   const showSwitcher = isParent && students.length > 1;
   const selected = students.find(s => s.id === selectedStudentId);
 
@@ -48,12 +49,16 @@ export function AppHeader({ isParent, totalEarned, viewedStudent, payoutPending,
 
       <div className="flex items-center gap-2 justify-self-end sm:col-start-3 sm:row-start-1">
         {viewedStudent && <Avatar avatar={viewedStudent.avatar} name={viewedStudent.name} size={44} className="ring-2 ring-white/60" />}
-        <div className={`${isParent ? "bg-emerald-800" : "bg-indigo-700"} rounded-xl px-3 py-2 text-center`}>
+        <button
+          onClick={onBalanceClick}
+          aria-label="View grades and balance"
+          className={`${isParent ? "bg-emerald-800 hover:bg-emerald-900" : "bg-indigo-700 hover:bg-indigo-800"} rounded-xl px-3 py-2 text-center`}
+        >
           <p className={`${isParent ? "text-emerald-300" : "text-indigo-300"} text-xs`}>
-            {showSwitcher && selected ? `${selected.name.split(" ")[0]}'s Balance` : "Balance"}
+            {showSwitcher && selected ? `${selected.name.split(" ")[0]}'s Balance` : "Balance"} ›
           </p>
           <p className={`text-lg font-bold ${totalEarned >= 0 ? "text-green-300" : "text-red-300"}`}>${totalEarned.toFixed(2)}</p>
-        </div>
+        </button>
         <button onClick={onLogout}
           className={`${isParent ? "bg-emerald-600" : "bg-indigo-500"} rounded-xl px-3 py-2 text-xs font-medium`}>
           Log out

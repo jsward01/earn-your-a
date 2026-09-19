@@ -1,5 +1,6 @@
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
+import { ARCHIVE_ON_PAYOUT_WHERE } from "../../_lib/assignments";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -62,6 +63,12 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
          VALUES (?, ?, ?, NULL, ?, 'Payout approved')`,
       )
       .bind(crypto.randomUUID(), user.familyId, existing.student_id, -existing.amount)
+      .run();
+
+    // Paying out settles the period: archive (and so lock) the finished work that was paid for.
+    await context.env.DB
+      .prepare(`UPDATE assignments SET payout_id = ? WHERE student_id = ? AND ${ARCHIVE_ON_PAYOUT_WHERE}`)
+      .bind(id, existing.student_id)
       .run();
   }
 

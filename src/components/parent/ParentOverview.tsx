@@ -9,6 +9,8 @@ interface ParentOverviewProps {
   assignments: Assignment[];
   summary: RewardSummary | null;
   onChanged: () => void;
+  /** Open the parent editor for this assignment (to grade it, fix a grade, or change its details). */
+  onEdit: (a: Assignment) => void;
 }
 
 function getDueSoonColor(date: string): string {
@@ -26,7 +28,7 @@ function getDueSoonLabel(date: string): { text: string; color: string } {
   return { text: `Due ${date}`, color: "text-gray-400" };
 }
 
-export function ParentOverview({ assignments, summary, onChanged }: ParentOverviewProps) {
+export function ParentOverview({ assignments, summary, onChanged, onEdit }: ParentOverviewProps) {
   const rules = useRewardSettings();
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [payoutAction, setPayoutAction] = useState<PayoutAction | null>(null);
@@ -57,8 +59,9 @@ export function ParentOverview({ assignments, summary, onChanged }: ParentOvervi
     .filter(a => a.status === "pending")
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
-  const missing = assignments.filter(a => a.status === "missing");
-  const lowGrade = assignments.filter(a => a.status === "graded" && a.grade !== null && a.grade < rules.passingThreshold);
+  // Work already settled by a payout is archived (Past Grades), so it drops off these to-do style lists.
+  const missing = assignments.filter(a => a.status === "missing" && !a.payoutId);
+  const lowGrade = assignments.filter(a => a.status === "graded" && a.grade !== null && a.grade < rules.passingThreshold && !a.payoutId);
 
   const graded = assignments.filter(a => a.grade !== null);
   const avgGrade = graded.length ? Math.round(graded.reduce((s, a) => s + (a.grade ?? 0), 0) / graded.length) : 0;
@@ -109,7 +112,7 @@ export function ParentOverview({ assignments, summary, onChanged }: ParentOvervi
             {upcoming.map(a => {
               const due = getDueSoonLabel(a.dueDate);
               return (
-                <div key={a.id} className={`flex items-center justify-between px-4 py-3 border-l-4 ${getDueSoonColor(a.dueDate)}`}>
+                <div key={a.id} onClick={() => onEdit(a)} className={`flex items-center justify-between px-4 py-3 border-l-4 cursor-pointer active:opacity-80 ${getDueSoonColor(a.dueDate)}`}>
                   <div className="flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${getSubjectColor(a.subject)}`} />
                     <div>
@@ -144,7 +147,7 @@ export function ParentOverview({ assignments, summary, onChanged }: ParentOvervi
           ? <p className="text-sm text-gray-400 px-4 pb-4">No missing assignments 🎉</p>
           : <div className="divide-y divide-gray-50">
             {missing.map(a => (
-              <div key={a.id} className="flex items-center justify-between px-4 py-3 border-l-4 border-red-400 bg-red-50">
+              <div key={a.id} onClick={() => onEdit(a)} className="flex items-center justify-between px-4 py-3 border-l-4 border-red-400 bg-red-50 cursor-pointer active:opacity-80">
                 <div className="flex items-center gap-3">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${getSubjectColor(a.subject)}`} />
                   <div>
@@ -180,7 +183,7 @@ export function ParentOverview({ assignments, summary, onChanged }: ParentOvervi
             {lowGrade.map(a => {
               const canMakeup = (a.type === "test" || a.type === "quiz") && (a.daysLeft ?? 0) > 0;
               return (
-                <div key={a.id} className="flex items-center justify-between px-4 py-3 border-l-4 border-orange-400 bg-orange-50">
+                <div key={a.id} onClick={() => onEdit(a)} className="flex items-center justify-between px-4 py-3 border-l-4 border-orange-400 bg-orange-50 cursor-pointer active:opacity-80">
                   <div className="flex items-center gap-3">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${getSubjectColor(a.subject)}`} />
                     <div>

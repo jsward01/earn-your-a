@@ -97,3 +97,32 @@ describe("rewardAmountFor / formatMoney", () => {
     expect(DEFAULT_REWARD_SETTINGS).toMatchObject(HOUSE_RULES);
   });
 });
+
+describe("graded cards show what the ledger recorded (not a recomputation)", () => {
+  const RULES: RewardRules = { assignmentReward: 3, testReward: 20, passingThreshold: 70 };
+
+  it("uses the recorded amount even when today's rate differs", () => {
+    // Graded back when assignments paid $5; the family has since lowered it to $3.
+    expect(getRewardStatus(make({ grade: 85, recordedReward: 5 }), RULES)).toMatchObject({ earned: 5, label: "+$5.00" });
+  });
+
+  it("a recorded penalty keeps its amount, and the makeup hint while the window is open", () => {
+    expect(getRewardStatus(make({ type: "test", grade: 50, recordedReward: -35, daysLeft: 2 }), RULES)).toMatchObject({ earned: -35, label: "-$35.00 (Makeup Available)" });
+    expect(getRewardStatus(make({ type: "test", grade: 50, recordedReward: -35, daysLeft: 0 }), RULES)).toMatchObject({ earned: -35, label: "-$35.00" });
+  });
+
+  it("graded with nothing recorded (null) is $0, not a recomputed reward", () => {
+    expect(getRewardStatus(make({ grade: 40, recordedReward: null }), RULES)).toMatchObject({ earned: 0, label: "$0.00" });
+    // ...even for a grade that would pay under today's rules:
+    expect(getRewardStatus(make({ grade: 95, recordedReward: null }), RULES).earned).toBe(0);
+  });
+
+  it("pending and missing ignore any recorded value", () => {
+    expect(getRewardStatus(make({ status: "pending", grade: null, recordedReward: 5 }), RULES).earned).toBeNull();
+    expect(getRewardStatus(make({ status: "missing", grade: null, recordedReward: 5 }), RULES).earned).toBe(0);
+  });
+
+  it("when recordedReward is absent the rules still apply (previews)", () => {
+    expect(getRewardStatus(make({ grade: 85 }), RULES).earned).toBe(3);
+  });
+});

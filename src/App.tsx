@@ -12,6 +12,8 @@ import { StudentProfile } from "./components/student/StudentProfile";
 import { AIBreakdown } from "./components/student/AIBreakdown";
 import { ParentOverview } from "./components/parent/ParentOverview";
 import { ParentSettings } from "./components/parent/ParentSettings";
+import { AssignmentEditor } from "./components/parent/AssignmentEditor";
+import { BalancePage } from "./components/shared/BalancePage";
 import { MessagesScreen } from "./components/shared/MessagesScreen";
 import { CalendarView } from "./components/shared/CalendarView";
 import { WeeklySummary } from "./components/shared/WeeklySummary";
@@ -59,6 +61,8 @@ export default function App() {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   // Mirrors selectedStudentId so async callbacks can tell whether a response is still for the current student.
   const selectedRef = useRef<string | null>(null);
+  // The parent assignment editor (null assignment = add new work). Lives here so Overview and the Balance page share it.
+  const [editor, setEditor] = useState<{ assignment: Assignment | null } | null>(null);
 
   // Point every student-scoped request at `id`, and drop the previous student's
   // data right away so it can't flash under the new student's name.
@@ -87,6 +91,13 @@ export default function App() {
       .catch(err => console.error("Failed to load students", err))
       .finally(() => setStudentsLoaded(true));
   }, [applySelection]);
+
+  const reloadAssignments = useCallback(() => {
+    const requestedFor = selectedRef.current;
+    fetchAssignments()
+      .then(a => { if (selectedRef.current === requestedFor) setAssignments(a); })
+      .catch(err => console.error("Failed to load assignments", err));
+  }, []);
 
   const refreshSummary = useCallback(() => {
     const requestedFor = selectedRef.current;
@@ -140,6 +151,21 @@ export default function App() {
   const isParent = user.role === "parent";
   const navs = isParent ? PARENT_NAVS : STUDENT_NAVS;
 
+  function handleAssignmentSaved(a: Assignment) {
+    setAssignments(prev => (prev.some(x => x.id === a.id) ? prev.map(x => (x.id === a.id ? a : x)) : [...prev, a]));
+    refreshSummary();
+  }
+
+  function handleAssignmentDeleted(id: string) {
+    setAssignments(prev => prev.filter(x => x.id !== id));
+    refreshSummary();
+  }
+
+  function openBalance() {
+    reloadAssignments(); // pick up anything a payout just archived
+    setView("balance");
+  }
+
   async function handleLogout() {
     await apiLogout();
     setUser(null);
@@ -166,6 +192,7 @@ export default function App() {
         students={students}
         selectedStudentId={selectedStudentId}
         onSelectStudent={applySelection}
+        onBalanceClick={openBalance}
         onLogout={handleLogout}
       />
 
@@ -185,12 +212,37 @@ export default function App() {
         {view === "notifications" && <NotificationCenter key={settingsLoaded ? "loaded" : "defaults"} assignments={assignments} isParent={isParent} payoutPending={payoutPending} studentName={studentName} />}
         {!isParent && view === "ai" && <AIBreakdown />}
         {!isParent && view === "profile" && <StudentProfile name={user.name} />}
-        {isParent && view === "dashboard" && <ParentOverview assignments={assignments} summary={summary} onChanged={refreshSummary} />}
-        {isParent && view === "assignments" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} onChanged={refreshSummary} />}
+        {view === "balance" && (
+          <BalancePage
+            assignments={assignments}
+            summary={summary}
+            readOnly={!isParent}
+            onBack={() => setView("dashboard")}
+            onEdit={a => setEditor({ assignment: a })}
+            onAdd={() => setEditor({ assignment: null })}
+          />
+        )}
+        {isParent && view === "dashboard" && (
+          <ParentOverview
+            assignments={assignments}
+            summary={summary}
+            onChanged={() => { reloadAssignments(); refreshSummary(); }}
+            onEdit={a => setEditor({ assignment: a })}
+          />
+        )}
         {isParent && view === "settings" && <ParentSettings user={user} onStudentsChanged={() => { loadStudents(); refreshSummary(); }} onSettingsSaved={setRewardSettings} />}
       </div>
 
       <BottomNav navs={navs} view={view} isParent={isParent} payoutPending={payoutPending} onSelect={setView} />
+      {isParent && editor && (
+        <AssignmentEditor
+          assignment={editor.assignment}
+          studentName={summary?.studentName ?? "student"}
+          onClose={() => setEditor(null)}
+          onSaved={handleAssignmentSaved}
+          onDeleted={handleAssignmentDeleted}
+        />
+      )}
     </div>
     </RewardSettingsContext.Provider>
   );

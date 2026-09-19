@@ -10,6 +10,12 @@ export interface AssignmentRow {
   grade: number | null;
   makeup_deadline: string | null;
   makeup_used: number;
+  /** SUM of the ledger rows tied to this assignment; NULL when it has none. Only present on rows read via ASSIGNMENT_SELECT. */
+  recorded_reward?: number | null;
+  /** The payout that settled (archived + locked) this item; NULL while it's still current. */
+  payout_id?: string | null;
+  /** When that payout was approved. Only present on rows read via ASSIGNMENT_SELECT. */
+  paid_at?: string | null;
 }
 
 /**
@@ -39,6 +45,15 @@ export function nextMakeupState(
   return { deadline: d.toISOString().slice(0, 10), used: 0 };
 }
 
+/**
+ * Which finished work a payout settles. Graded and missing items are archived, EXCEPT ones whose makeup window is
+ * still open — a failed test with days left to retake must stay editable, or the retake could never reverse its
+ * penalty (that's what the holdback is for). Pending work is never archived.
+ */
+export const ARCHIVE_ON_PAYOUT_WHERE = `payout_id IS NULL AND status IN ('graded', 'missing') AND NOT (makeup_deadline IS NOT NULL AND makeup_deadline >= date('now'))`;
+
+export const ARCHIVED_MESSAGE = "This work was paid out, so it's archived under Past Grades and can't be edited.";
+
 export function toAssignmentJson(row: AssignmentRow) {
   return {
     id: row.id,
@@ -50,5 +65,17 @@ export function toAssignmentJson(row: AssignmentRow) {
     grade: row.grade,
     makeupDeadline: row.makeup_deadline,
     makeupUsed: row.makeup_used === 1,
+    // What the ledger actually recorded for this item (null = nothing, i.e. $0). Cards show this for graded
+    // work so they can't disagree with the money even after the family's reward settings change.
+    recordedReward: row.recorded_reward ?? null,
+    // Set once a payout has settled this item: it's archived under Past Grades and can no longer be edited.
+    payoutId: row.payout_id ?? null,
+    paidAt: row.paid_at ?? null,
   };
+}
+
+export const ASSIGNMENT_SELECT = `SELECT a.*, (SELECT SUM(t.amount) FROM reward_transactions t WHERE t.assignment_id = a.id) AS recorded_reward, (SELECT p.resolved_at FROM payout_requests p WHERE p.id = a.payout_id) AS paid_at FROM assignments a`;
+
+export async function getAssignmentRow(db: D1Database, id: string): Promise<AssignmentRow | null> {
+  return db.prepare(`${ASSIGNMENT_SELECT} WHERE a.id = ?`).bind(id).first<AssignmentRow>();
 }

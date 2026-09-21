@@ -198,7 +198,7 @@ export default function App() {
 
       {/* Keyed by student so switching remounts (and so refetches) every student-scoped view.
           Settings isn't student-scoped, so it keeps its state (e.g. a just-created temp password). */}
-      <div key={view === "settings" ? "settings" : selectedStudentId ?? "none"} className="flex-1 min-h-0 overflow-y-auto pb-20">
+      <div key={view === "settings" ? "settings" : selectedStudentId ?? "none"} className="flex-1 min-h-0 overflow-y-auto pb-24">
         {isParent && studentsLoaded && students.length === 0 && view !== "settings" && (
           <div className="p-6 text-center text-sm text-gray-500">
             No students yet. Add one in Settings → Account Access.
@@ -228,6 +228,7 @@ export default function App() {
             summary={summary}
             onChanged={() => { reloadAssignments(); refreshSummary(); }}
             onEdit={a => setEditor({ assignment: a })}
+            onAdd={() => setEditor({ assignment: null })}
           />
         )}
         {isParent && view === "settings" && <ParentSettings user={user} onStudentsChanged={() => { loadStudents(); refreshSummary(); }} onSettingsSaved={setRewardSettings} />}

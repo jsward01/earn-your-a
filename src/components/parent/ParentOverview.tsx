@@ -4,6 +4,8 @@ import { getSubjectColor, getSubjectLight, getDaysLeftColor } from "../../lib/st
 import { fetchPayouts, resolvePayout, type PayoutRequestRow, type RewardSummary } from "../../lib/api";
 import { rewardAmountFor } from "../../lib/rewards";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
+import { daysUntilDate } from "../../lib/dates";
+import { splitPending } from "../../lib/assignments";
 
 interface ParentOverviewProps {
   assignments: Assignment[];
@@ -11,26 +13,36 @@ interface ParentOverviewProps {
   onChanged: () => void;
   /** Open the parent editor for this assignment (to grade it, fix a grade, or change its details). */
   onEdit: (a: Assignment) => void;
+  /** Open the parent editor empty, to add an assignment (with or without a grade). */
+  onAdd: () => void;
 }
 
 function getDueSoonColor(date: string): string {
-  const days = Math.ceil((new Date(date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+  const days = daysUntilDate(date);
   if (days <= 1) return "border-red-300 bg-red-50";
   if (days <= 3) return "border-yellow-300 bg-yellow-50";
   return "border-gray-200 bg-white";
 }
 
 function getDueSoonLabel(date: string): { text: string; color: string } {
-  const days = Math.ceil((new Date(date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-  if (days <= 0) return { text: "Due Today", color: "text-red-600 font-bold" };
+  const days = daysUntilDate(date);
+  if (days === 0) return { text: "Due Today", color: "text-red-600 font-bold" };
   if (days === 1) return { text: "Due Tomorrow", color: "text-red-500 font-bold" };
   if (days <= 3) return { text: `Due in ${days} days`, color: "text-yellow-600 font-semibold" };
   return { text: `Due ${date}`, color: "text-gray-400" };
 }
 
-export function ParentOverview({ assignments, summary, onChanged, onEdit }: ParentOverviewProps) {
+function getWaitingLabel(date: string): string {
+  const days = -daysUntilDate(date);
+  return days === 1 ? "Was due yesterday" : `Was due ${days} days ago`;
+}
+
+type OverviewFilter = "all" | "toGrade" | "comingUp" | "missing" | "lowGrade";
+
+export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd }: ParentOverviewProps) {
   const rules = useRewardSettings();
   const fmt = useFormatAmount();
+  const [filter, setFilter] = useState<OverviewFilter>("all");
   const [showPayoutModal, setShowPayoutModal] = useState(false);
   const [payoutAction, setPayoutAction] = useState<PayoutAction | null>(null);
   const [payouts, setPayouts] = useState<PayoutRequestRow[]>([]);
@@ -56,13 +68,14 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit }: Pare
     }
   }
 
-  const upcoming = assignments
-    .filter(a => a.status === "pending")
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+  // Pending work splits in two: past due = waiting on the parent's grade, everything else is still coming up.
+  const { needsGrade, comingUp: upcoming } = splitPending(assignments);
 
   // Work already settled by a payout is archived (Past Grades), so it drops off these to-do style lists.
   const missing = assignments.filter(a => a.status === "missing" && !a.payoutId);
   const lowGrade = assignments.filter(a => a.status === "graded" && a.grade !== null && a.grade < rules.passingThreshold && !a.payoutId);
+
+  const show = (f: Exclude<OverviewFilter, "all">) => filter === "all" || filter === f;
 
   const graded = assignments.filter(a => a.grade !== null);
   const avgGrade = graded.length ? Math.round(graded.reduce((s, a) => s + (a.grade ?? 0), 0) / graded.length) : 0;
@@ -84,26 +97,76 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit }: Pare
         </div>
       )}
 
+      <div className="flex items-center justify-between">
+        <button onClick={() => setFilter("all")} aria-pressed={filter === "all"}
+          className={`text-sm font-semibold px-4 py-2 rounded-lg border ${filter === "all" ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-gray-600 border-gray-200"}`}>All</button>
+        <button onClick={onAdd} className="text-sm bg-indigo-50 text-indigo-700 font-medium px-3 py-2 rounded-lg">+ Add assignment</button>
+      </div>
+
       <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "Upcoming", val: upcoming.length, color: "text-indigo-600", bg: "bg-indigo-50" },
-          { label: "Missing", val: missing.length, color: missing.length > 0 ? "text-red-500" : "text-green-600", bg: missing.length > 0 ? "bg-red-50" : "bg-green-50" },
-          { label: "Low Grade", val: lowGrade.length, color: lowGrade.length > 0 ? "text-orange-500" : "text-green-600", bg: lowGrade.length > 0 ? "bg-orange-50" : "bg-green-50" },
-          { label: "Avg Grade", val: `${avgGrade}%`, color: avgGrade >= 90 ? "text-green-600" : avgGrade >= rules.passingThreshold ? "text-indigo-600" : "text-red-500", bg: "bg-white" },
-        ].map((s, i) => (
-          <div key={i} className={`${s.bg} rounded-2xl p-3 shadow-sm text-center border border-gray-100`}>
-            <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
-            <p className="text-xs text-gray-500 mt-0.5 leading-tight">{s.label}</p>
-          </div>
+        {([
+          { key: "toGrade", label: "To Grade", val: needsGrade.length, color: needsGrade.length > 0 ? "text-amber-600" : "text-green-600", bg: needsGrade.length > 0 ? "bg-amber-50" : "bg-green-50" },
+          { key: "comingUp", label: "Coming Up", val: upcoming.length, color: "text-indigo-600", bg: "bg-indigo-50" },
+          { key: "missing", label: "Missing", val: missing.length, color: missing.length > 0 ? "text-red-500" : "text-green-600", bg: missing.length > 0 ? "bg-red-50" : "bg-green-50" },
+          { key: "lowGrade", label: "Low Grade", val: lowGrade.length, color: lowGrade.length > 0 ? "text-orange-500" : "text-green-600", bg: lowGrade.length > 0 ? "bg-orange-50" : "bg-green-50" },
+        ] as const).map(t => (
+          <button key={t.key} onClick={() => setFilter(filter === t.key ? "all" : t.key)} aria-pressed={filter === t.key}
+            className={`${t.bg} rounded-2xl p-2 shadow-sm text-center border active:opacity-80 ${filter === t.key ? "border-emerald-700 ring-2 ring-emerald-700" : "border-gray-100"}`}>
+            <p className={`text-xl font-bold ${t.color}`}>{t.val}</p>
+            <p className="text-xs text-gray-500 mt-0.5 leading-tight">{t.label}</p>
+          </button>
         ))}
       </div>
 
-      {/* SECTION 1: Upcoming Assignments */}
+      {graded.length > 0 && (
+        <p className="text-xs text-gray-400 text-center -mt-2">
+          Overall average {avgGrade}% across {graded.length} graded {graded.length === 1 ? "item" : "items"} (all classes; Campus weights each class differently)
+        </p>
+      )}
+
+      {/* SECTION 0: Needs your grade (past due, still ungraded) */}
+      {show("toGrade") && (
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">✏️</span>
+            <p className="font-bold text-gray-800 text-sm">Needs Your Grade</p>
+          </div>
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${needsGrade.length > 0 ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}`}>{needsGrade.length}</span>
+        </div>
+        {needsGrade.length === 0
+          ? <p className="text-sm text-gray-400 px-4 pb-4">Nothing waiting on you 🎉</p>
+          : <div className="divide-y divide-gray-50">
+            {needsGrade.map(a => (
+              <div key={a.id} onClick={() => onEdit(a)} className="flex items-center justify-between px-4 py-3 border-l-4 border-amber-400 bg-amber-50 cursor-pointer active:opacity-80">
+                <div className="flex items-center gap-3">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${getSubjectColor(a.subject)}`} />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{a.title}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectLight(a.subject)}`}>{a.subject}</span>
+                      <span className="text-xs text-gray-400 capitalize">{a.type}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right shrink-0 ml-2">
+                  <p className="text-xs text-amber-700 font-semibold">{getWaitingLabel(a.dueDate)}</p>
+                  <p className="text-xs text-indigo-500 font-semibold mt-0.5">{fmt(rewardAmountFor(a.type, rules), { short: true })} at stake</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        }
+      </div>
+      )}
+
+      {/* SECTION 1: Coming up (not yet due) */}
+      {show("comingUp") && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-2">
             <span className="text-lg">📅</span>
-            <p className="font-bold text-gray-800 text-sm">Upcoming Assignments</p>
+            <p className="font-bold text-gray-800 text-sm">Coming Up</p>
           </div>
           <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">{upcoming.length}</span>
         </div>
@@ -134,8 +197,10 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit }: Pare
           </div>
         }
       </div>
+      )}
 
       {/* SECTION 2: Missing Assignments */}
+      {show("missing") && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-2">
@@ -168,8 +233,10 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit }: Pare
           </div>
         }
       </div>
+      )}
 
       {/* SECTION 3: Low Grade Assignments */}
+      {show("lowGrade") && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-2">
@@ -209,6 +276,7 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit }: Pare
           </div>
         }
       </div>
+      )}
 
       {showPayoutModal && pending && (
         <div className="fixed inset-0 bg-black/40 flex items-end z-50">

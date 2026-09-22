@@ -279,14 +279,15 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
       )}
 
       {showPayoutModal && pending && (
-        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
-          <div className="bg-white w-full rounded-t-3xl p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-3xl p-6 space-y-4">
             {payoutAction === "approve" && <>
               <h2 className="text-lg font-bold text-gray-800">✅ Approve Payout</h2>
               <div className="bg-green-50 rounded-2xl p-4">
                 <div className="flex justify-between text-sm mb-2"><span>Amount</span><span className="font-bold text-green-600">{fmt(pending.amount)}</span></div>
                 <div className="flex justify-between text-sm"><span>Holdback retained</span><span className="font-bold">{fmt(pending.holdbackAmount)}</span></div>
               </div>
+              <p className="text-sm text-gray-500">Confirming records the payout and locks the paid work under Past Grades. It does <span className="font-semibold">not</span> send anything — pay {summary?.studentName ?? "your student"} {fmt(pending.amount)} yourself (Venmo, cash, etc.).</p>
               <button onClick={() => handleResolve("approve")} disabled={resolving} className="w-full bg-green-500 text-white py-3 rounded-xl font-semibold disabled:opacity-40">{resolving ? "Confirming…" : "Confirm Approval"}</button>
             </>}
             {payoutAction === "delay" && <>

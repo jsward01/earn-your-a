@@ -1,4 +1,5 @@
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
+import { AppearanceCard } from "../shared/AppearanceCard";
 
 const CONNECTED_ACCOUNTS = [
   { name: "Google Classroom", icon: "🎓" },
@@ -18,6 +19,7 @@ export function StudentProfile({ name }: StudentProfileProps) {
         <p className="text-xl font-bold">{name}</p>
         <p className="text-indigo-200 text-sm">Student</p>
       </div>
+      <AppearanceCard />
       <ChangePasswordCard />
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
         <p className="text-xs text-gray-400 font-medium">CONNECTED ACCOUNTS</p>

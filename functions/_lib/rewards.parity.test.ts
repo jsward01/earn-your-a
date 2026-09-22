@@ -13,17 +13,23 @@ const make = (over: Partial<Assignment>): Assignment => ({
 // The browser and the server each implement the house rules. If they ever disagree, the screen
 // shows one number while the ledger records another — so pin them together, for the defaults AND
 // for the parent-configured amounts/pass marks that used to make them drift apart.
-const RULE_SETS: [string, Pick<FullRewardSettings, "assignmentReward" | "testReward" | "passingThreshold">][] = [
-  ["house defaults ($3 / $20 / 70%)", { assignmentReward: 3, testReward: 20, passingThreshold: 70 }],
-  ["custom ($5 / $35 / 80%)", { assignmentReward: 5, testReward: 35, passingThreshold: 80 }],
-  ["fractional ($2.50 / $12.50 / 65%)", { assignmentReward: 2.5, testReward: 12.5, passingThreshold: 65 }],
-  ["strict (100% pass mark)", { assignmentReward: 3, testReward: 20, passingThreshold: 100 }],
-  ["zero amounts", { assignmentReward: 0, testReward: 0, passingThreshold: 70 }],
+type Rules = Pick<
+  FullRewardSettings,
+  "assignmentReward" | "quizReward" | "testReward" | "assignmentPenalty" | "quizPenalty" | "testPenalty" | "passingThreshold"
+>;
+const RULE_SETS: [string, Rules][] = [
+  ["house defaults ($3 / $10 / $20, penalties $0 / $10 / $20, 70%)", { assignmentReward: 3, quizReward: 10, testReward: 20, assignmentPenalty: 0, quizPenalty: 10, testPenalty: 20, passingThreshold: 70 }],
+  ["custom ($5 / $15 / $35 / 80%)", { assignmentReward: 5, quizReward: 15, testReward: 35, assignmentPenalty: 0, quizPenalty: 15, testPenalty: 35, passingThreshold: 80 }],
+  ["penalties differ from rewards", { assignmentReward: 3, quizReward: 10, testReward: 20, assignmentPenalty: 1, quizPenalty: 4, testPenalty: 8, passingThreshold: 70 }],
+  ["no penalties at all", { assignmentReward: 3, quizReward: 10, testReward: 20, assignmentPenalty: 0, quizPenalty: 0, testPenalty: 0, passingThreshold: 70 }],
+  ["fractional ($2.50 / $7.50 / $12.50 / 65%)", { assignmentReward: 2.5, quizReward: 7.5, testReward: 12.5, assignmentPenalty: 0.5, quizPenalty: 2.25, testPenalty: 12.5, passingThreshold: 65 }],
+  ["strict (100% pass mark)", { assignmentReward: 3, quizReward: 10, testReward: 20, assignmentPenalty: 0, quizPenalty: 10, testPenalty: 20, passingThreshold: 100 }],
+  ["zero amounts", { assignmentReward: 0, quizReward: 0, testReward: 0, assignmentPenalty: 0, quizPenalty: 0, testPenalty: 0, passingThreshold: 70 }],
 ];
 
 const BASE: FullRewardSettings = {
-  assignmentReward: 3, testReward: 20, passingThreshold: 70, makeupWindowDays: 7,
-  holdback: 20, rewardType: "money", payoutSchedule: "request",
+  assignmentReward: 3, quizReward: 10, testReward: 20, assignmentPenalty: 0, quizPenalty: 10, testPenalty: 20, passingThreshold: 70, makeupWindowDays: 7,
+  holdback: 20, holdbackType: "amount", rewardType: "money", payoutSchedule: "request",
 };
 
 const grades = [0, 1, 50, 64.99, 65, 69, 69.99, 70, 70.01, 79.99, 80, 85, 99.99, 100];

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { AuthUser, RewardSettings } from "../../types";
 import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
+import { AppearanceCard } from "../shared/AppearanceCard";
 import { Avatar } from "../shared/Avatar";
 import { DEFAULT_REWARD_SETTINGS, unitWord } from "../../lib/rewards";
 import { AvatarPicker } from "./AvatarPicker";
@@ -14,14 +15,48 @@ interface ParentSettingsProps {
   onSettingsSaved: (settings: RewardSettings) => void;
 }
 
-/** Fields whose number is a reward amount, so its unit follows the reward type (money "$", screen time "min", points "pts", custom word). */
-const REWARD_AMOUNT_FIELDS: { label: string; key: keyof RewardSettings; isReward: boolean; suffix: string }[] = [
-  { label: "Assignment Reward", key: "assignmentReward", isReward: true, suffix: "each" },
-  { label: "Test / Quiz Reward", key: "testReward", isReward: true, suffix: "each" },
-  { label: "Passing Threshold", key: "passingThreshold", isReward: false, suffix: "%" },
-  { label: "Makeup Window", key: "makeupWindow", isReward: false, suffix: "days" },
-  { label: "Payout Holdback", key: "holdback", isReward: true, suffix: "buffer" },
+type AmountKey = "assignmentReward" | "quizReward" | "testReward" | "assignmentPenalty" | "quizPenalty" | "testPenalty";
+
+/** The three kinds of work, each with its own reward and its own penalty. */
+const REWARD_FIELDS: { label: string; key: AmountKey }[] = [
+  { label: "Regular assignment", key: "assignmentReward" },
+  { label: "Quiz", key: "quizReward" },
+  { label: "Test / exam", key: "testReward" },
 ];
+const PENALTY_FIELDS: { label: string; key: AmountKey }[] = [
+  { label: "Regular assignment", key: "assignmentPenalty" },
+  { label: "Quiz", key: "quizPenalty" },
+  { label: "Test / exam", key: "testPenalty" },
+];
+
+type SettingsTab = "rewards" | "payouts" | "family" | "account";
+const TABS: { val: SettingsTab; icon: string; label: string }[] = [
+  { val: "rewards", icon: "🏆", label: "Rewards" },
+  { val: "payouts", icon: "💸", label: "Payouts" },
+  { val: "family", icon: "👨‍👩‍👧", label: "Family" },
+  { val: "account", icon: "👤", label: "My Account" },
+];
+
+/** One labeled number box: "Quiz  $ [10] each". */
+function NumberRow({ label, hint, value, onChange, prefix, suffix, max, children }: {
+  label: string; hint?: string; value: number; onChange: (n: number) => void; prefix?: string; suffix?: string; max?: number; children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-sm text-gray-700">{label}</p>
+        {hint && <p className="text-xs text-gray-400">{hint}</p>}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        {children}
+        {prefix && <span className="text-gray-500 text-sm">{prefix}</span>}
+        <input type="number" min={0} max={max} value={value} onChange={e => onChange(parseFloat(e.target.value))}
+          className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        {suffix && <span className="text-gray-400 text-xs">{suffix}</span>}
+      </div>
+    </div>
+  );
+}
 
 /** What to show around a reward amount's number box for the selected type. */
 function rewardAffixes(s: Pick<RewardSettings, "rewardType" | "customUnit">, suffix: string): { prefix: string; suffix: string } {
@@ -47,6 +82,7 @@ const PAYOUT_SCHEDULES: { val: RewardSettings["payoutSchedule"]; label: string }
 ];
 
 export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: ParentSettingsProps) {
+  const [tab, setTab] = useState<SettingsTab>("rewards");
   const [settings, setSettings] = useState<RewardSettings>(DEFAULT_REWARD_SETTINGS);
   const [accounts, setAccounts] = useState<FamilyAccount[]>([]);
   const [resettingId, setResettingId] = useState<string | null>(null);
@@ -65,6 +101,12 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
 
   function update<K extends keyof RewardSettings>(key: K, val: RewardSettings[K]) {
     setSettings({ ...settings, [key]: val });
+    setSaved(false);
+  }
+
+  /** Flip the holdback between a fixed amount and a percentage of the balance (a percentage can't exceed 100). */
+  function switchHoldbackType(t: RewardSettings["holdbackType"]) {
+    setSettings({ ...settings, holdbackType: t, holdback: t === "percent" && settings.holdback > 100 ? 20 : settings.holdback });
     setSaved(false);
   }
 
@@ -129,10 +171,123 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
   const parents = accounts.filter(a => a.role === "parent").sort((a, b) => Number(b.isAdmin) - Number(a.isAdmin) || byName(a, b));
   const students = accounts.filter(a => a.role === "student").sort(byName);
 
+  const unit = settings.rewardType === "money" ? "$" : unitWord(settings, 2);
+  const showSave = tab === "rewards" || tab === "payouts";
+
   return (
     <div className="pb-4 px-4 pt-4 space-y-4">
-      <ChangePasswordCard />
+      <div className="grid grid-cols-4 gap-1.5" role="tablist" aria-label="Settings categories">
+        {TABS.map(t => (
+          <button key={t.val} role="tab" aria-selected={tab === t.val} onClick={() => setTab(t.val)}
+            className={`min-h-14 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-0.5 border ${tab === t.val ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-gray-600 border-gray-200"}`}>
+            <span className="text-lg leading-none">{t.icon}</span>{t.label}
+          </button>
+        ))}
+      </div>
 
+      {tab === "rewards" && <>
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
+        <p className="text-xs text-gray-400 font-medium">REWARD TYPE</p>
+        <div className="grid grid-cols-2 gap-2">
+          {REWARD_TYPES.map(r => (
+            <button key={r.val} onClick={() => update("rewardType", r.val)}
+              className={`py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all ${settings.rewardType === r.val ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+              <span>{r.icon}</span>{r.label}
+            </button>
+          ))}
+        </div>
+        {settings.rewardType === "custom" && (
+          <label className="block">
+            <span className="block text-xs font-medium text-gray-500 mb-1">What do you call the reward?</span>
+            <input
+              value={settings.customUnit} maxLength={20} placeholder="e.g. stars, tokens, minutes of gaming"
+              onChange={e => update("customUnit", e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </label>
+        )}
+        <p className="text-xs text-gray-400">
+          Changing the type only changes the unit shown. Numbers aren't converted (20 stays 20), so review the amounts below. It's best to choose this before grades start adding up.
+        </p>
+      </div>
+
+
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
+          <div>
+            <p className="text-xs text-gray-400 font-medium">REWARDS</p>
+            <p className="text-xs text-gray-400 mt-1">Earned when the work is graded at or above the passing grade.</p>
+          </div>
+          {REWARD_FIELDS.map(f => {
+            const { prefix, suffix } = rewardAffixes(settings, "each");
+            return <NumberRow key={f.key} label={f.label} value={settings[f.key]} onChange={n => update(f.key, n)} prefix={prefix} suffix={suffix} />;
+          })}
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
+          <p className="text-xs text-gray-400 font-medium">PASSING GRADE &amp; RETAKES</p>
+          <NumberRow label="Passing grade" hint="At or above this earns the reward." value={settings.passingThreshold} onChange={n => update("passingThreshold", n)} suffix="%" max={100} />
+          <NumberRow label="Retake window" hint="Time to retake missing or failed work." value={settings.makeupWindow} onChange={n => update("makeupWindow", n)} suffix="days" />
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
+          <div>
+            <p className="text-xs text-gray-400 font-medium">PENALTIES</p>
+            <p className="text-xs text-gray-400 mt-1">Taken away when work is graded <span className="font-semibold">below</span> the passing grade. Set 0 for no penalty. Missing work is never penalized, and a passing retake within the retake window reverses the penalty.</p>
+          </div>
+          {PENALTY_FIELDS.map(f => {
+            const { prefix, suffix } = rewardAffixes(settings, "lost");
+            return <NumberRow key={f.key} label={f.label} value={settings[f.key]} onChange={n => update(f.key, n)} prefix={prefix} suffix={suffix} />;
+          })}
+        </div>
+
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+        <p className="text-xs text-gray-400 font-medium">BONUS FEATURES</p>
+        {BONUS_FIELDS.map(b => (
+          <div key={b.key} className="flex items-center justify-between">
+            <div><p className="text-sm font-medium text-gray-700">{b.label}</p><p className="text-xs text-gray-400">{b.desc}</p></div>
+            <button onClick={() => update(b.key, !settings[b.key])}
+              className={`w-12 h-6 rounded-full transition-all relative ${settings[b.key] ? "bg-indigo-600" : "bg-gray-200"}`}>
+              <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow ${settings[b.key] ? "left-6" : "left-0.5"}`} />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      </>}
+
+      {tab === "payouts" && <>
+      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+        <p className="text-xs text-gray-400 font-medium">PAYOUT SCHEDULE</p>
+        {PAYOUT_SCHEDULES.map(p => (
+          <button key={p.val} onClick={() => update("payoutSchedule", p.val)}
+            className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all ${settings.payoutSchedule === p.val ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : "bg-gray-50 text-gray-600 border border-transparent"}`}>
+            {settings.payoutSchedule === p.val ? "✅ " : ""}{p.label}
+          </button>
+        ))}
+      </div>
+
+
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
+          <div>
+            <p className="text-xs text-gray-400 font-medium">HOLDBACK</p>
+            <p className="text-xs text-gray-400 mt-1">Kept back from every payout to cover penalties on work that's still coming in. Choose a fixed amount or a percentage of the balance.</p>
+          </div>
+          <NumberRow label="Hold back" value={settings.holdback} onChange={n => update("holdback", n)} suffix={settings.holdbackType === "percent" ? "of balance" : "each payout"}
+            max={settings.holdbackType === "percent" ? 100 : undefined}>
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 mr-1" role="group" aria-label="Holdback is a fixed amount or a percentage">
+              {(["amount", "percent"] as const).map(t => (
+                <button key={t} onClick={() => switchHoldbackType(t)} aria-pressed={settings.holdbackType === t}
+                  className={`px-2.5 py-1 text-xs font-semibold ${settings.holdbackType === t ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"}`}>{t === "amount" ? unit : "%"}</button>
+              ))}
+            </div>
+          </NumberRow>
+          {settings.holdbackType === "percent" && (
+            <p className="text-xs text-gray-400">The holdback is that percentage of the balance at the moment a payout is requested (for example 20% of a {settings.rewardType === "money" ? "$119" : "119"} balance holds back {settings.rewardType === "money" ? "$23.80" : "23.8"}).</p>
+          )}
+        </div>
+      </>}
+
+      {tab === "family" && <>
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
         <p className="text-xs text-gray-400 font-medium">ACCOUNT ACCESS</p>
         {resetError && <p className="text-sm text-red-500">{resetError}</p>}
@@ -188,80 +343,26 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
-        <p className="text-xs text-gray-400 font-medium">REWARD TYPE</p>
-        <div className="grid grid-cols-2 gap-2">
-          {REWARD_TYPES.map(r => (
-            <button key={r.val} onClick={() => update("rewardType", r.val)}
-              className={`py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all ${settings.rewardType === r.val ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-600"}`}>
-              <span>{r.icon}</span>{r.label}
-            </button>
-          ))}
-        </div>
-        {settings.rewardType === "custom" && (
-          <label className="block">
-            <span className="block text-xs font-medium text-gray-500 mb-1">What do you call the reward?</span>
-            <input
-              value={settings.customUnit} maxLength={20} placeholder="e.g. stars, tokens, minutes of gaming"
-              onChange={e => update("customUnit", e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-          </label>
-        )}
-        <p className="text-xs text-gray-400">
-          Changing the type only changes the unit shown. Numbers aren't converted (20 stays 20), so review the amounts below. It's best to choose this before grades start adding up.
-        </p>
-      </div>
+      </>}
 
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
-        <p className="text-xs text-gray-400 font-medium">REWARD AMOUNTS</p>
-        {REWARD_AMOUNT_FIELDS.map(f => {
-          const { prefix, suffix } = f.isReward ? rewardAffixes(settings, f.suffix) : { prefix: "", suffix: f.suffix };
-          return (
-          <div key={f.key} className="flex items-center justify-between">
-            <p className="text-sm text-gray-700">{f.label}</p>
-            <div className="flex items-center gap-1">
-              {prefix && <span className="text-gray-500 text-sm">{prefix}</span>}
-              <input type="number" value={settings[f.key] as number} onChange={e => update(f.key, parseFloat(e.target.value) as RewardSettings[typeof f.key])}
-                className="w-16 border border-gray-200 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-              <span className="text-gray-400 text-xs">{suffix}</span>
-            </div>
-          </div>
-          );
-        })}
-      </div>
+      {tab === "account" && <>
+        <AppearanceCard />
 
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-        <p className="text-xs text-gray-400 font-medium">BONUS FEATURES</p>
-        {BONUS_FIELDS.map(b => (
-          <div key={b.key} className="flex items-center justify-between">
-            <div><p className="text-sm font-medium text-gray-700">{b.label}</p><p className="text-xs text-gray-400">{b.desc}</p></div>
-            <button onClick={() => update(b.key, !settings[b.key])}
-              className={`w-12 h-6 rounded-full transition-all relative ${settings[b.key] ? "bg-indigo-600" : "bg-gray-200"}`}>
-              <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow ${settings[b.key] ? "left-6" : "left-0.5"}`} />
-            </button>
-          </div>
-        ))}
-      </div>
+        <ChangePasswordCard />
+      </>}
 
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-        <p className="text-xs text-gray-400 font-medium">PAYOUT SCHEDULE</p>
-        {PAYOUT_SCHEDULES.map(p => (
-          <button key={p.val} onClick={() => update("payoutSchedule", p.val)}
-            className={`w-full text-left px-4 py-3 rounded-xl text-sm font-medium transition-all ${settings.payoutSchedule === p.val ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : "bg-gray-50 text-gray-600 border border-transparent"}`}>
-            {settings.payoutSchedule === p.val ? "✅ " : ""}{p.label}
+      {showSave && (
+        <div className="sticky bottom-2 z-10 space-y-2">
+          {saveError && <p className="text-sm text-red-500 text-center bg-white rounded-xl py-1 shadow">{saveError}</p>}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm shadow-lg disabled:opacity-40"
+          >
+            {saving ? "Saving…" : saved ? "✓ Saved!" : "Save Settings"}
           </button>
-        ))}
-      </div>
-
-      {saveError && <p className="text-sm text-red-500 text-center">{saveError}</p>}
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm shadow disabled:opacity-40"
-      >
-        {saving ? "Saving…" : saved ? "✓ Saved!" : "Save Settings"}
-      </button>
+        </div>
+      )}
 
       {pickingFor && (
         <AvatarPicker

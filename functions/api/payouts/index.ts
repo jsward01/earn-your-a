@@ -1,6 +1,6 @@
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
-import { getFullRewardSettings, getBalance } from "../../_lib/rewards";
+import { getFullRewardSettings, getBalance, holdbackFor, availableFor } from "../../_lib/rewards";
 import { resolveStudentId } from "../../_lib/students";
 
 function json(data: unknown, status: number): Response {
@@ -55,7 +55,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const settings = await getFullRewardSettings(context.env.DB, user.familyId);
   const balance = await getBalance(context.env.DB, user.id);
-  const available = Math.max(0, balance - settings.holdback);
+  const available = availableFor(balance, settings);
   if (available <= 0) return json({ error: "No available balance to request" }, 400);
 
   const id = crypto.randomUUID();
@@ -64,7 +64,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       `INSERT INTO payout_requests (id, family_id, student_id, amount, holdback_amount, status)
        VALUES (?, ?, ?, ?, ?, 'pending')`,
     )
-    .bind(id, user.familyId, user.id, available, settings.holdback)
+    .bind(id, user.familyId, user.id, available, holdbackFor(balance, settings))
     .run();
 
   const row = await context.env.DB.prepare("SELECT * FROM payout_requests WHERE id = ?").bind(id).first<PayoutRow>();

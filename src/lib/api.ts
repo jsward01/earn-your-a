@@ -142,7 +142,10 @@ export interface RewardSummary {
   studentName: string;
   studentAvatar: string | null;
   balance: number;
+  /** The amount held back right now (for a percentage holdback, that percentage of the balance). */
   holdback: number;
+  holdbackType?: "amount" | "percent";
+  holdbackSetting?: number;
   available: number;
   rewardType: string;
   payoutPending: boolean;

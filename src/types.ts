@@ -98,13 +98,21 @@ export type View =
 
 export type RewardType = "money" | "screen" | "points" | "custom";
 export type PayoutSchedule = "request" | "monthly" | "manual";
+export type HoldbackType = "amount" | "percent";
 
 export interface RewardSettings {
   assignmentReward: number;
+  quizReward: number;
   testReward: number;
+  /** What finishing below the pass mark costs, per kind of work (0 = no penalty). */
+  assignmentPenalty: number;
+  quizPenalty: number;
+  testPenalty: number;
   passingThreshold: number;
   makeupWindow: number;
+  /** A fixed amount, or a percentage of the balance when holdbackType is "percent". */
   holdback: number;
+  holdbackType: HoldbackType;
   rewardType: RewardType;
   /** The family's own word for the reward when rewardType is "custom" (blank shows "units"). */
   customUnit: string;

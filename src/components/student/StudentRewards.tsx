@@ -179,7 +179,7 @@ export function StudentRewards({ summary, onChanged }: StudentRewardsProps) {
                 <div className="flex justify-between text-sm"><span>Holdback</span><span className="font-bold text-yellow-600">{fmt(-holdback)}</span></div>
                 <div className="border-t border-indigo-200 pt-2 flex justify-between text-sm"><span className="font-bold">Requesting</span><span className="font-bold text-green-600">{fmt(available)}</span></div>
               </div>
-              <p className="text-xs text-gray-400">A {fmt(holdback)} buffer is held back to cover any upcoming penalties. Negative balances carry forward.</p>
+              <p className="text-xs text-gray-400">{summary?.holdbackType === "percent" ? `${summary.holdbackSetting}% of your balance (${fmt(holdback)})` : `A ${fmt(holdback)} buffer`} is held back to cover any upcoming penalties. Negative balances carry forward.</p>
               <button onClick={handleRequestPayout} disabled={requesting} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{requesting ? "Sending…" : "Send Request to Parent"}</button>
               <button onClick={() => setShowPayoutModal(false)} className="w-full text-gray-400 text-sm">Cancel</button>
             </> : <div className="text-center py-6">

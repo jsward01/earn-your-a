@@ -1,7 +1,7 @@
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
 import { resolveStudentId } from "../../_lib/students";
-import { getFullRewardSettings, getBalance } from "../../_lib/rewards";
+import { getFullRewardSettings, getBalance, holdbackFor, availableFor } from "../../_lib/rewards";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -18,7 +18,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const studentRow = await context.env.DB.prepare("SELECT name, avatar FROM users WHERE id = ?").bind(studentId).first<{ name: string; avatar: string | null }>();
   const settings = await getFullRewardSettings(context.env.DB, user.familyId);
   const balance = await getBalance(context.env.DB, studentId);
-  const available = Math.max(0, balance - settings.holdback);
+  const holdback = holdbackFor(balance, settings);
+  const available = availableFor(balance, settings);
 
   const pendingPayout = await context.env.DB
     .prepare("SELECT id FROM payout_requests WHERE student_id = ? AND status = 'pending' LIMIT 1")
@@ -31,7 +32,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       studentName: studentRow?.name ?? "Student",
       studentAvatar: studentRow?.avatar ?? null,
       balance,
-      holdback: settings.holdback,
+      holdback,
+      // The setting behind it, so screens can say "20% of your balance" instead of just the amount.
+      holdbackType: settings.holdbackType,
+      holdbackSetting: settings.holdback,
       available,
       rewardType: settings.rewardType,
       payoutPending: !!pendingPayout,

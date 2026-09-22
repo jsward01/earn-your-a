@@ -231,7 +231,7 @@ export function NotificationCenter({ assignments, isParent, payoutPending, stude
       <div className="space-y-3">
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wide">Delivery Previews</p>
 
-        <div className="bg-gray-900 rounded-2xl p-4">
+        <div className="keep-palette bg-gray-900 rounded-2xl p-4">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-lg">📱</span>
             <p className="text-white font-bold text-sm">SMS Preview</p>

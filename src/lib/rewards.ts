@@ -3,10 +3,15 @@ import type { Assignment, AssignmentType, RewardSettings, RewardStatus } from ".
 /** The family's house defaults. The server falls back to the same numbers when a family has no saved row. */
 export const DEFAULT_REWARD_SETTINGS: RewardSettings = {
   assignmentReward: 3,
+  quizReward: 10,
   testReward: 20,
+  assignmentPenalty: 0,
+  quizPenalty: 10,
+  testPenalty: 20,
   passingThreshold: 70,
   makeupWindow: 7,
   holdback: 20,
+  holdbackType: "amount",
   rewardType: "money",
   customUnit: "",
   excellenceBonus: true,
@@ -18,19 +23,31 @@ export const DEFAULT_REWARD_SETTINGS: RewardSettings = {
 export type RewardFormat = Pick<RewardSettings, "rewardType" | "customUnit">;
 
 /** What an item pays and what counts as passing, plus how to write the amount. */
-export type RewardRules = Pick<RewardSettings, "assignmentReward" | "testReward" | "passingThreshold" | "rewardType" | "customUnit">;
+export type RewardRules = Pick<
+  RewardSettings,
+  "assignmentReward" | "quizReward" | "testReward" | "assignmentPenalty" | "quizPenalty" | "testPenalty" | "passingThreshold" | "rewardType" | "customUnit"
+>;
 
 export const HOUSE_RULES: RewardRules = {
   assignmentReward: DEFAULT_REWARD_SETTINGS.assignmentReward,
+  quizReward: DEFAULT_REWARD_SETTINGS.quizReward,
   testReward: DEFAULT_REWARD_SETTINGS.testReward,
+  assignmentPenalty: DEFAULT_REWARD_SETTINGS.assignmentPenalty,
+  quizPenalty: DEFAULT_REWARD_SETTINGS.quizPenalty,
+  testPenalty: DEFAULT_REWARD_SETTINGS.testPenalty,
   passingThreshold: DEFAULT_REWARD_SETTINGS.passingThreshold,
   rewardType: DEFAULT_REWARD_SETTINGS.rewardType,
   customUnit: DEFAULT_REWARD_SETTINGS.customUnit,
 };
 
-/** What an on-time, passing item of this type pays (tests and quizzes share one amount). */
+/** What a passing item of this type pays: assignments, quizzes and tests each have their own amount. */
 export function rewardAmountFor(type: AssignmentType, rules: RewardRules): number {
-  return type === "assignment" ? rules.assignmentReward : rules.testReward;
+  return type === "assignment" ? rules.assignmentReward : type === "quiz" ? rules.quizReward : rules.testReward;
+}
+
+/** What finishing below the pass mark costs for this type (0 = no penalty). */
+export function penaltyAmountFor(type: AssignmentType, rules: RewardRules): number {
+  return type === "assignment" ? rules.assignmentPenalty : type === "quiz" ? rules.quizPenalty : rules.testPenalty;
 }
 
 /** The unit word for non-money rewards: "min", "pts", or the family's own word. Money has none (it's a "$" prefix). */
@@ -68,11 +85,12 @@ export function formatAmount(amount: number, fmt: RewardFormat, opts: FormatOpti
 }
 
 /**
- * House reward rules (amounts and pass mark come from the family's Settings; the defaults are $3 / $20 / 70%):
- * - Regular assignments: the assignment amount if >= the pass mark, otherwise nothing.
- * - Tests/quizzes: +the test amount if >= the pass mark, otherwise -the test amount (reversible via makeup window).
- * - Missing work earns nothing with no negative penalty (the penalty applies to
- *   graded-but-failing tests/quizzes only).
+ * House reward rules (amounts, penalties and pass mark come from the family's Settings; the defaults are
+ * $3 assignment / $10 quiz / $20 test, 70% to pass, and a penalty of $0 / $10 / $20):
+ * - At or above the pass mark: +the reward for that kind of work.
+ * - Below it: -the penalty for that kind of work (reversible via the makeup window). Regular assignments default to a
+ *   $0 penalty, i.e. they simply earn nothing.
+ * - Missing work earns nothing with no negative penalty (penalties apply to graded-but-failing work only).
  *
  * Graded items that carry `recordedReward` (everything from the API) use that instead of the rules below; the rules
  * still drive previews and anything not yet recorded.
@@ -99,16 +117,9 @@ export function getRewardStatus(a: Assignment, rules: RewardRules = HOUSE_RULES)
     return { earned: 0, label: formatAmount(0, rules), color: "text-gray-400" };
   }
 
-  if (type === "assignment") {
-    if (passed) return { earned: rules.assignmentReward, label: gain(rules.assignmentReward), color: "text-green-500" };
-    return { earned: 0, label: formatAmount(0, rules), color: "text-gray-400" };
-  }
-
-  if (type === "test" || type === "quiz") {
-    const amount = rules.testReward;
-    if (passed) return { earned: amount, label: gain(amount), color: "text-green-500" };
-    return { earned: -amount, label: makeup(-amount), color: penaltyColor };
-  }
-
+  const reward = rewardAmountFor(type, rules);
+  const penalty = penaltyAmountFor(type, rules);
+  if (passed) return { earned: reward, label: gain(reward), color: "text-green-500" };
+  if (penalty > 0) return { earned: -penalty, label: makeup(-penalty), color: penaltyColor };
   return { earned: 0, label: formatAmount(0, rules), color: "text-gray-400" };
 }

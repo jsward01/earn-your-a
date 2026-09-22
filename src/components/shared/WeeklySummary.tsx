@@ -248,7 +248,7 @@ export function WeeklySummary({ assignments, isParent, studentName }: WeeklySumm
         }
       </div>
 
-      <div className="bg-gray-800 rounded-2xl p-4 shadow-sm">
+      <div className="keep-palette bg-gray-800 rounded-2xl p-4 shadow-sm">
         <div className="flex items-center gap-2 mb-3">
           <span className="text-lg">🔔</span>
           <p className="text-white font-bold text-sm">Sunday Notification Preview</p>

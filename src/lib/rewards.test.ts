@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Assignment } from "../types";
-import { DEFAULT_REWARD_SETTINGS, formatAmount, getRewardStatus, HOUSE_RULES, rewardAmountFor, unitWord, type RewardFormat, type RewardRules } from "./rewards";
+import { DEFAULT_REWARD_SETTINGS, formatAmount, getRewardStatus, HOUSE_RULES, penaltyAmountFor, rewardAmountFor, unitWord, type RewardFormat, type RewardRules } from "./rewards";
 
 const make = (over: Partial<Assignment>): Assignment => ({
   id: "a1",
@@ -23,14 +23,25 @@ describe("getRewardStatus (what the UI shows)", () => {
     expect(getRewardStatus(make({ grade: 69 }))).toMatchObject({ earned: 0, label: "$0.00" });
   });
 
-  it.each(["test", "quiz"] as const)("%s >=70 shows +$20", type => {
-    expect(getRewardStatus(make({ type, grade: 70 }))).toMatchObject({ earned: 20, label: "+$20.00" });
+  it("test >=70 shows +$20 and quiz >=70 shows +$10", () => {
+    expect(getRewardStatus(make({ type: "test", grade: 70 }))).toMatchObject({ earned: 20, label: "+$20.00" });
+    expect(getRewardStatus(make({ type: "quiz", grade: 70 }))).toMatchObject({ earned: 10, label: "+$10.00" });
   });
 
-  it.each(["test", "quiz"] as const)("%s <70 shows -$20, flagged as makeup-available while the window is open", type => {
-    expect(getRewardStatus(make({ type, grade: 50, daysLeft: 3 }))).toMatchObject({ earned: -20, label: "-$20.00 (Makeup Available)" });
-    expect(getRewardStatus(make({ type, grade: 50, daysLeft: 0 }))).toMatchObject({ earned: -20, label: "-$20.00" });
-    expect(getRewardStatus(make({ type, grade: 50, daysLeft: null }))).toMatchObject({ earned: -20, label: "-$20.00" });
+  it.each([["test", 20], ["quiz", 10]] as const)("%s <70 shows -$%i, flagged as makeup-available while the window is open", (type, amount) => {
+    const money = `$${amount}.00`;
+    expect(getRewardStatus(make({ type, grade: 50, daysLeft: 3 }))).toMatchObject({ earned: -amount, label: `-${money} (Makeup Available)` });
+    expect(getRewardStatus(make({ type, grade: 50, daysLeft: 0 }))).toMatchObject({ earned: -amount, label: `-${money}` });
+    expect(getRewardStatus(make({ type, grade: 50, daysLeft: null }))).toMatchObject({ earned: -amount, label: `-${money}` });
+  });
+
+  it("a regular assignment can carry its own penalty when the family sets one", () => {
+    expect(getRewardStatus(make({ grade: 50 }), { ...HOUSE_RULES, assignmentPenalty: 2 })).toMatchObject({ earned: -2, label: "-$2.00" });
+    expect(getRewardStatus(make({ grade: 50 }), { ...HOUSE_RULES, assignmentPenalty: 0 })).toMatchObject({ earned: 0 });
+  });
+
+  it("a $0 penalty means a failed test or quiz just earns nothing", () => {
+    expect(getRewardStatus(make({ type: "test", grade: 10 }), { ...HOUSE_RULES, testPenalty: 0 })).toMatchObject({ earned: 0, label: "$0.00" });
   });
 
   it("missing earns $0 for every type (no penalty)", () => {
@@ -45,13 +56,15 @@ describe("getRewardStatus (what the UI shows)", () => {
 });
 
 describe("getRewardStatus follows the family's saved rules", () => {
-  const RULES: RewardRules = { ...HOUSE_RULES, assignmentReward: 5, testReward: 35, passingThreshold: 80 };
+  const RULES: RewardRules = { ...HOUSE_RULES, assignmentReward: 5, quizReward: 25, testReward: 35, quizPenalty: 25, testPenalty: 35, passingThreshold: 80 };
 
   it("labels and amounts use the configured rewards", () => {
     expect(getRewardStatus(make({ grade: 85 }), RULES)).toMatchObject({ earned: 5, label: "+$5.00" });
     expect(getRewardStatus(make({ type: "test", grade: 85 }), RULES)).toMatchObject({ earned: 35, label: "+$35.00" });
-    expect(getRewardStatus(make({ type: "quiz", grade: 40 }), RULES)).toMatchObject({ earned: -35, label: "-$35.00" });
-    expect(getRewardStatus(make({ type: "quiz", grade: 40, daysLeft: 2 }), RULES).label).toBe("-$35.00 (Makeup Available)");
+    expect(getRewardStatus(make({ type: "quiz", grade: 85 }), RULES)).toMatchObject({ earned: 25, label: "+$25.00" });
+    expect(getRewardStatus(make({ type: "quiz", grade: 40 }), RULES)).toMatchObject({ earned: -25, label: "-$25.00" });
+    expect(getRewardStatus(make({ type: "quiz", grade: 40, daysLeft: 2 }), RULES).label).toBe("-$25.00 (Makeup Available)");
+    expect(getRewardStatus(make({ type: "test", grade: 40 }), RULES)).toMatchObject({ earned: -35, label: "-$35.00" });
   });
 
   it("the pass mark moves with the settings, on both sides of it", () => {
@@ -77,16 +90,26 @@ describe("getRewardStatus follows the family's saved rules", () => {
 });
 
 describe("rewardAmountFor", () => {
-  const RULES: RewardRules = { ...HOUSE_RULES, assignmentReward: 4, testReward: 25, passingThreshold: 70 };
+  const RULES: RewardRules = { ...HOUSE_RULES, assignmentReward: 4, quizReward: 15, testReward: 25, quizPenalty: 6, testPenalty: 9, assignmentPenalty: 1, passingThreshold: 70 };
 
-  it("assignments pay the assignment amount; tests and quizzes share the test amount", () => {
+  it("assignments, quizzes and tests each pay their own amount", () => {
     expect(rewardAmountFor("assignment", RULES)).toBe(4);
-    expect(rewardAmountFor("quiz", RULES)).toBe(25);
+    expect(rewardAmountFor("quiz", RULES)).toBe(15);
     expect(rewardAmountFor("test", RULES)).toBe(25);
   });
 
-  it("HOUSE_RULES are exactly the agreed $3 / $20 / 70%", () => {
-    expect(HOUSE_RULES).toEqual({ assignmentReward: 3, testReward: 20, passingThreshold: 70, rewardType: "money", customUnit: "" });
+  it("each kind of work has its own penalty", () => {
+    expect(penaltyAmountFor("assignment", RULES)).toBe(1);
+    expect(penaltyAmountFor("quiz", RULES)).toBe(6);
+    expect(penaltyAmountFor("test", RULES)).toBe(9);
+  });
+
+  it("HOUSE_RULES are exactly the agreed rules: $3 assignment / $10 quiz / $20 test, penalties $0 / $10 / $20, 70% to pass", () => {
+    expect(HOUSE_RULES).toEqual({
+      assignmentReward: 3, quizReward: 10, testReward: 20,
+      assignmentPenalty: 0, quizPenalty: 10, testPenalty: 20,
+      passingThreshold: 70, rewardType: "money", customUnit: "",
+    });
     expect(DEFAULT_REWARD_SETTINGS).toMatchObject(HOUSE_RULES);
   });
 });
@@ -197,7 +220,7 @@ describe("reward labels on cards use the reward type", () => {
 
   it("screen time and custom", () => {
     expect(getRewardStatus(make({ type: "test", grade: 90 }), rules(SCREEN)).label).toBe("+20 min");
-    expect(getRewardStatus(make({ type: "quiz", grade: 40 }), rules(STARS)).label).toBe("-20 stars");
+    expect(getRewardStatus(make({ type: "quiz", grade: 40 }), rules(STARS)).label).toBe("-10 stars");
   });
 
   it("recorded amounts are written in the current unit too", () => {

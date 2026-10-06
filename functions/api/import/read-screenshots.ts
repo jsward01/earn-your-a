@@ -1,19 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
+import { validateImages } from "../../_lib/images";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 }
 
-const MAX_IMAGES = 8;
-/** The browser shrinks screenshots before upload; this only stops something unreasonable (~5 MB per image). */
-const MAX_BASE64_CHARS = 7_000_000;
-const MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp"] as const);
-type MediaType = "image/jpeg" | "image/png" | "image/webp";
-
 interface RequestBody {
-  images?: { mediaType?: string; data?: string }[];
+  images?: unknown;
 }
 
 const PROMPT = `These are screenshots of a school portal's notification list (for example Infinite Campus). Transcribe every notification you can read in full.
@@ -42,21 +37,15 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     return json({ error: "Invalid request body" }, 400);
   }
 
-  const images = body.images ?? [];
-  if (!Array.isArray(images) || images.length === 0) return json({ error: "Add at least one screenshot" }, 400);
-  if (images.length > MAX_IMAGES) return json({ error: `At most ${MAX_IMAGES} screenshots at a time` }, 400);
-  for (const img of images) {
-    if (!img || !MEDIA_TYPES.has(img.mediaType as MediaType)) return json({ error: "Screenshots must be JPEG, PNG or WebP" }, 400);
-    if (typeof img.data !== "string" || !img.data || img.data.length > MAX_BASE64_CHARS || !/^[A-Za-z0-9+/]+=*$/.test(img.data)) {
-      return json({ error: "One of the screenshots couldn't be read — try a smaller image" }, 400);
-    }
-  }
+  const checked = validateImages(body.images, true);
+  if ("error" in checked) return json({ error: checked.error }, 400);
+  const { images } = checked;
 
   const client = new Anthropic({ apiKey: context.env.ANTHROPIC_API_KEY });
   const content: Anthropic.Beta.BetaContentBlockParam[] = [
     ...images.map((img): Anthropic.Beta.BetaContentBlockParam => ({
       type: "image",
-      source: { type: "base64", media_type: img.mediaType as MediaType, data: img.data as string },
+      source: { type: "base64", media_type: img.mediaType, data: img.data },
     })),
     { type: "text", text: PROMPT },
   ];

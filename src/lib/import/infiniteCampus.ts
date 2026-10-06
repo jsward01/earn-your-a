@@ -185,6 +185,7 @@ export function parseNotifications(text: string, knownClasses: string[] = [], no
 }
 
 export const infiniteCampus: GradeSource = {
+  kind: "local",
   id: "infinite-campus",
   name: "Infinite Campus",
   instructions:

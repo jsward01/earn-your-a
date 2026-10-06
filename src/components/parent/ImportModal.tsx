@@ -1,14 +1,15 @@
 import { useMemo, useRef, useState } from "react";
 import type { Assignment, AssignmentType } from "../../types";
 import {
-  createAssignment, fetchImportIgnores, fetchRewardSummary, ignoreImportItem, readScreenshots, unignoreImportItem, updateAssignment,
+  createAssignment, extractGrades, fetchImportIgnores, fetchRewardSummary, ignoreImportItem, readScreenshots, unignoreImportItem, updateAssignment,
 } from "../../lib/api";
 import { fileToScreenshotUpload } from "../../lib/screenshotImage";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import { GRADE_SOURCES } from "../../lib/import/sources";
 import { buildPlan, estimateDelta, knownClasses, notInList, type IgnoreKey, type PlanKind, type PlanRow } from "../../lib/import/match";
 import { importKey } from "../../lib/import/normalize";
-import type { ImportedItem, SkippedLine } from "../../lib/import/types";
+import type { ImportedItem, ParseResult, SkippedLine } from "../../lib/import/types";
+import { fromExtracted } from "../../lib/import/other";
 
 interface ImportModalProps {
   assignments: Assignment[];
@@ -58,7 +59,8 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
   const [ignores, setIgnores] = useState<IgnoreKey[]>([]);
   const [busyRow, setBusyRow] = useState<number | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
-  const [reading, setReading] = useState(false);
+  // What's being read right now (text by the AI source, or screenshots), so each button shows its own progress.
+  const [reading, setReading] = useState<"text" | "screenshots" | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
   const [readNote, setReadNote] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -67,8 +69,8 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
   const estimate = useMemo(() => selected.reduce((sum, r) => sum + estimateDelta(r, rules), 0), [selected, rules]);
   const missingFromList = useMemo(() => (complete ? notInList(rows, appAssignments) : []), [complete, rows, appAssignments]);
 
-  async function review(input: string) {
-    const result = source.parse(input, knownClasses(appAssignments));
+  /** Show the checklist for a parse result (from a local parser or the AI reader). */
+  async function showReview(result: ParseResult) {
     // If the ignore list can't load, show everything rather than block the import.
     const saved = await fetchImportIgnores().catch(err => { console.error("Failed to load ignored imports", err); return []; });
     setItems(result.items);
@@ -127,13 +129,36 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
     onImported();
   });
 
+  /** Review pasted text: a local parser runs instantly; the AI source asks the server to read it first. */
+  async function review(input: string) {
+    if (source.kind === "local") return showReview(source.parse(input, knownClasses(appAssignments)));
+    setReading("text");
+    setReadError(null);
+    setReadNote(null);
+    try {
+      const extracted = await extractGrades({ text: input });
+      await showReview(fromExtracted(extracted, knownClasses(appAssignments)));
+    } catch (err) {
+      setReadError(err instanceof Error ? err.message : "Couldn't read that");
+    } finally {
+      setReading(null);
+    }
+  }
+
   async function handleScreenshots(files: FileList | null) {
     if (!files || files.length === 0) return;
-    setReading(true);
+    setReading("screenshots");
     setReadError(null);
     setReadNote(null);
     try {
       const uploads = await Promise.all([...files].slice(0, 8).map(fileToScreenshotUpload));
+      if (source.kind === "ai") {
+        // Any system: Claude reads the screenshots straight into assignments (plus any text already pasted).
+        const extracted = await extractGrades({ text: text.trim() || undefined, images: uploads });
+        setReadNote(`Read ${uploads.length} screenshot${uploads.length === 1 ? "" : "s"}.` + (files.length > 8 ? " Only the first 8 were used." : ""));
+        await showReview(fromExtracted(extracted, knownClasses(appAssignments)));
+        return;
+      }
       const result = await readScreenshots(uploads);
       if (!result.text.trim()) {
         setReadError("No notifications could be read from that. Make sure the notification list is open and readable in the screenshot.");
@@ -151,7 +176,7 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
     } catch (err) {
       setReadError(err instanceof Error ? err.message : "Couldn't read the screenshots");
     } finally {
-      setReading(false);
+      setReading(null);
       if (fileInput.current) fileInput.current.value = "";
     }
   }
@@ -262,36 +287,35 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
             {GRADE_SOURCES.length > 1 && (
               <div>
                 <label htmlFor="import-source" className={label}>School system</label>
-                <select id="import-source" className={input} value={sourceId} onChange={e => setSourceId(e.target.value)}>
+                <select id="import-source" className={input} value={sourceId} onChange={e => { setSourceId(e.target.value); setReadError(null); }}>
                   {GRADE_SOURCES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
             )}
             <p className="text-sm text-gray-500">{source.instructions}</p>
 
+            <div>
+              <label htmlFor="import-text" className={label}>Pasted text</label>
+              <textarea id="import-text" rows={10} className={`${input} font-mono text-xs`} value={text} onChange={e => setText(e.target.value)}
+                placeholder="Paste here…" />
+            </div>
+            {readError && <p className="text-sm text-red-500">{readError}</p>}
+            <p className="text-xs text-gray-400">Nothing is saved until you review the list and tap Import.</p>
+            <button onClick={() => review(text)} disabled={!text.trim() || reading !== null} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">
+              {reading === "text" ? "Reading… (can take up to a minute for a long list)" : "Review"}
+            </button>
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <span className="h-px flex-1 bg-gray-200" />or upload screenshots<span className="h-px flex-1 bg-gray-200" />
+            </div>
             <input ref={fileInput} type="file" accept="image/*" multiple className="hidden"
               onChange={e => handleScreenshots(e.target.files)} />
-            <button onClick={() => fileInput.current?.click()} disabled={reading}
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-60">
-              {reading ? "Reading screenshots… (about 10–30 seconds)" : "📷 Upload screenshots"}
+            <button onClick={() => fileInput.current?.click()} disabled={reading !== null}
+              className="w-full bg-white text-indigo-700 border border-indigo-200 py-3 rounded-xl font-semibold text-sm disabled:opacity-60">
+              {reading === "screenshots" ? "Reading screenshots… (about 10–60 seconds)" : "📷 Upload screenshots"}
             </button>
             <p className="text-xs text-gray-400">
               Up to 8 at a time. Overlapping screenshots are fine — repeats are merged. Screenshots are read by Claude (AI) and not stored.
             </p>
-            {readError && <p className="text-sm text-red-500">{readError}</p>}
-
-            <div className="flex items-center gap-3 text-xs text-gray-400">
-              <span className="h-px flex-1 bg-gray-200" />or paste the text<span className="h-px flex-1 bg-gray-200" />
-            </div>
-            <div>
-              <label htmlFor="import-text" className={label}>Pasted {source.name} notifications</label>
-              <textarea id="import-text" rows={10} className={`${input} font-mono text-xs`} value={text} onChange={e => setText(e.target.value)}
-                placeholder={`${studentName} received a score of 8 out of 10 on Concept Check 1.2 in Geometry\n…`} />
-            </div>
-            <p className="text-xs text-gray-400">Nothing is saved until you review the list and tap Import.</p>
-            <button onClick={() => review(text)} disabled={!text.trim() || reading} className="w-full bg-white text-indigo-700 border border-indigo-200 py-3 rounded-xl font-semibold text-sm disabled:opacity-40">
-              Review
-            </button>
           </>
         )}
 
@@ -300,7 +324,7 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
             {readNote && <p className="text-xs text-gray-400">{readNote} Tap ‹ Back to see the text that was read.</p>}
             {rows.length === 0 ? (
               <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-gray-700">
-                No score or missing notifications found in that text. Make sure you copied the {source.name} notification list itself.
+                No assignments found in that. Make sure you copied the page that lists each assignment with its score{source.kind === "local" ? `, and that ${source.name} is the right school system above` : ""}.
               </div>
             ) : (
               <p className="text-sm text-gray-500">

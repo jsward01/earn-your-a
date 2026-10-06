@@ -41,11 +41,33 @@ export interface ParseResult {
   complete: boolean;
 }
 
-export interface GradeSource {
+/** One assignment as the AI reader returns it (functions/api/import/extract.ts → ExtractSchema). */
+export interface ExtractedItem {
+  className: string;
+  title: string;
+  status: "graded" | "missing" | "pending" | "dropped" | "exempt";
+  pointsEarned: number | null;
+  pointsPossible: number | null;
+  percent: number | null;
+  dueDate: string | null;
+  flags: string[];
+}
+
+interface SourceInfo {
   id: string;
   name: string;
   /** Where to copy from, in plain words, shown above the paste box. */
   instructions: string;
-  /** `knownClasses` (subjects already in the app) helps split "NAME in CLASS" when a title itself contains " in ". */
-  parse(text: string, knownClasses: string[], now?: Date): ParseResult;
 }
+
+/**
+ * How a school system's paste becomes items. "local": a parser written for that system's exact layout (instant,
+ * free). "ai": Claude reads any layout, text or screenshots (a few seconds, costs a little per import).
+ */
+export type GradeSource =
+  | (SourceInfo & {
+      kind: "local";
+      /** `knownClasses` (subjects already in the app) helps split "NAME in CLASS" when a title itself contains " in ". */
+      parse(text: string, knownClasses: string[], now?: Date): ParseResult;
+    })
+  | (SourceInfo & { kind: "ai" });

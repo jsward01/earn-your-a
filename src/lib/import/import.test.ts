@@ -3,6 +3,9 @@ import type { Assignment } from "../../types";
 import { findDate, parseInfiniteCampus, splitStamp, splitTitleAndClass } from "./infiniteCampus";
 import { buildPlan, estimateDelta, guessType, notInList } from "./match";
 import { DEFAULT_REWARD_SETTINGS } from "../rewards";
+import { fromExtracted } from "./other";
+import { GRADE_SOURCES } from "./sources";
+import type { ExtractedItem } from "./types";
 
 const CLASSES = ["Geometry", "Biology", "CE / Computer Tech I A", "World Geo & Civilizations", "Spanish II", "English 10"];
 
@@ -430,5 +433,64 @@ describe("ignored items", () => {
     ]);
     expect(rows[0]).toMatchObject({ kind: "ignored" });
     expect(rows[0].similar).toBeUndefined();
+  });
+});
+
+describe("Other school system (AI-read) → import items", () => {
+  const x = (over: Partial<ExtractedItem>): ExtractedItem => ({
+    className: "Algebra I", title: "HW 1", status: "graded", pointsEarned: null, pointsPossible: null, percent: null, dueDate: null, flags: [], ...over,
+  });
+
+  it("uses points first, then percent, and rounds", () => {
+    const { items } = fromExtracted([
+      x({ title: "A", pointsEarned: 13.5, pointsPossible: 15, percent: 89 }),
+      x({ title: "B", percent: 86.66 }),
+      x({ title: "C", pointsEarned: 21, pointsPossible: 33 }),
+    ]);
+    expect(items.map(i => [i.title, i.grade])).toEqual([["A", 90], ["B", 87], ["C", 64]]);
+  });
+
+  it("maps statuses: missing, pending (no score), dropped/exempt skipped", () => {
+    const { items, skipped } = fromExtracted([
+      x({ title: "M", status: "missing", pointsEarned: 0, pointsPossible: 10 }),
+      x({ title: "P", status: "pending", dueDate: "2026-10-20" }),
+      x({ title: "D", status: "dropped", percent: 50 }),
+      x({ title: "E", status: "exempt" }),
+    ]);
+    expect(items.map(i => [i.title, i.status, i.grade, i.points])).toEqual([
+      ["M", "missing", null, { earned: 0, possible: 10 }],
+      ["P", "pending", null, null],
+    ]);
+    expect(skipped.map(s => s.reason)).toEqual([expect.stringMatching(/Dropped/), "Exempt"]);
+  });
+
+  it("skips graded items with no usable score, and out-of-0 points", () => {
+    const { items, skipped } = fromExtracted([x({ title: "Letter only" }), x({ title: "Bonus", pointsEarned: 2, pointsPossible: 0 })]);
+    expect(items).toEqual([]);
+    expect(skipped.map(s => s.reason)).toEqual([expect.stringMatching(/No score/), expect.stringMatching(/Out of 0/)]);
+  });
+
+  it("uses the app's class spelling, strips terms, keeps real due dates, cleans flags", () => {
+    const { items } = fromExtracted([x({ className: "geometry - S2", percent: 80, dueDate: "2026-09-30", flags: ["Late", "missing", " "] })], ["Geometry"]);
+    expect(items[0]).toMatchObject({ className: "Geometry", date: "2026-09-30", dueDateExact: true, flags: ["late"] });
+  });
+
+  it("ignores a malformed due date rather than saving it", () => {
+    const { items } = fromExtracted([x({ percent: 80, dueDate: "Sept 30" }), x({ title: "HW 2", percent: 80, dueDate: "2026-13-01" })]);
+    expect(items.map(i => [i.date, i.dueDateExact])).toEqual([[null, false], [null, false]]);
+  });
+
+  it("de-duplicates, keeping the later-dated entry; never claims to be a complete list", () => {
+    const res = fromExtracted([x({ percent: 50, dueDate: "2026-09-01" }), x({ title: "hw 1", percent: 90, dueDate: "2026-09-08" })]);
+    expect(res.items.map(i => i.grade)).toEqual([90]);
+    expect(res.complete).toBe(false);
+  });
+
+  it("skips entries with no title or class", () => {
+    expect(fromExtracted([x({ title: " " }), x({ className: "" })]).skipped).toHaveLength(2);
+  });
+
+  it("is listed after Infinite Campus in the dropdown", () => {
+    expect(GRADE_SOURCES.map(s => [s.id, s.kind])).toEqual([["infinite-campus", "local"], ["other", "ai"]]);
   });
 });

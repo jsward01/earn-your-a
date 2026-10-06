@@ -1,3 +1,4 @@
+import type { ExtractedItem } from "./import/types";
 import type { AuthUser, Assignment, AssignmentPlan, AssignmentPlanForm, RewardSettings, SavingsGoal } from "../types";
 import { fromApiRow, type AssignmentApiRow } from "./assignments";
 
@@ -347,4 +348,14 @@ export async function ignoreImportItem(className: string, title: string): Promis
 export async function unignoreImportItem(id: string): Promise<void> {
   const res = await fetch(`/api/import-ignores/${id}`, { method: "DELETE" });
   await parseJsonOrThrow(res);
+}
+
+/** Parent-only: have Claude read pasted text and/or screenshots from any school system into assignments (nothing is saved). */
+export async function extractGrades(input: { text?: string; images?: { mediaType: string; data: string }[] }): Promise<ExtractedItem[]> {
+  const res = await fetch("/api/import/extract", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...input, today: new Date().toLocaleDateString("en-CA") }),
+  });
+  return ((await parseJsonOrThrow(res)) as { items: ExtractedItem[] }).items;
 }

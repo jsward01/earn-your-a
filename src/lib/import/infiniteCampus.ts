@@ -12,8 +12,25 @@ const FLAGGED = /^(.+?)['’]s? assignment (.+?) has been flagged \(([^)]*)\)[.\
 const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 const pad = (n: number) => String(n).padStart(2, "0");
 
-/** Finds a date in a line: 9/21/2026, 9/21/26, 2026-09-21, or "Sep 21, 2026". Returns YYYY-MM-DD or null. */
-export function findDate(line: string): string | null {
+const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const daysBefore = (now: Date, n: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - n);
+
+/** A month/day with no year: this year, unless that's still in the future (then it was last year). */
+function withYear(month: number, day: number, now: Date): string {
+  const y = now.getFullYear();
+  const candidate = new Date(y, month - 1, day);
+  return ymd(candidate > now ? new Date(y - 1, month - 1, day) : candidate);
+}
+
+/**
+ * Finds a date in a line and returns YYYY-MM-DD, or null. Understands 9/21/2026, 9/21/26, 2026-09-21,
+ * "Sep 21, 2026", and — relative to `now` — "Today", "Yesterday", a weekday name ("Friday" = the most recent one),
+ * 9/21 and "Sep 21" with no year.
+ */
+export function findDate(line: string, now: Date = new Date()): string | null {
+  if (/^\s*today\b/i.test(line)) return ymd(now);
+  if (/^\s*yesterday\b/i.test(line)) return ymd(daysBefore(now, 1));
   let m = line.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
   m = line.match(/\b(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})\b/);
@@ -24,26 +41,50 @@ export function findDate(line: string): string | null {
   }
   m = line.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2}),?\s+(\d{4})\b/i);
   if (m) return `${m[3]}-${pad(MONTHS.indexOf(m[1].toLowerCase()) + 1)}-${pad(Number(m[2]))}`;
+  m = line.match(/^\s*(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*,?\s+)?(\d{1,2})\/(\d{1,2})\b(?!\/)/i);
+  if (m && Number(m[1]) >= 1 && Number(m[1]) <= 12 && Number(m[2]) >= 1 && Number(m[2]) <= 31) return withYear(Number(m[1]), Number(m[2]), now);
+  m = line.match(/^\s*(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*,?\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b/i);
+  if (m) return withYear(MONTHS.indexOf(m[1].toLowerCase()) + 1, Number(m[2]), now);
+  m = line.match(/^\s*(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b/i);
+  if (m) {
+    const back = (now.getDay() - WEEKDAYS.indexOf(m[1].toLowerCase()) + 7) % 7;
+    return ymd(daysBefore(now, back));
+  }
   return null;
 }
 
-const STAMP = String.raw`(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*,?\s+)?(?:\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{2,4}|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4})(?:,?\s*(?:at\s+)?\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?)?`;
+const DAY = String.raw`(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*`;
+const MON = String.raw`(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?`;
+const TIME = String.raw`(?:,?\s*(?:at\s+)?\d{1,2}:\d{2}(?::\d{2})?\s*(?:am|pm)?)`;
+// A whole stamp: an absolute date (optionally after a weekday), a relative day, or a bare weekday — each with an optional time.
+const STAMP = String.raw`(?:(?:${DAY},?\s+)?(?:\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}(?:/\d{2,4})?|${MON}\s+\d{1,2}(?:,?\s+\d{4})?)${TIME}?|(?:today|yesterday|${DAY})${TIME}?)`;
 const LEADING_STAMP = new RegExp(`^${STAMP}\\s*[-–|:]?\\s*`, "i");
 const TRAILING_STAMP = new RegExp(`\\s*[-–|]?\\s*${STAMP}$`, "i");
 
 /** Pull a date/time stamp off either end of a notification line: returns the bare message and the stamp's date. */
-export function splitStamp(line: string): { message: string; date: string | null } {
+export function splitStamp(line: string, now: Date = new Date()): { message: string; date: string | null } {
   const lead = line.match(LEADING_STAMP);
-  if (lead) return { message: line.slice(lead[0].length).trim(), date: findDate(lead[0]) };
+  if (lead) {
+    const date = findDate(lead[0], now);
+    if (date) return { message: line.slice(lead[0].length).trim(), date };
+  }
   const trail = line.match(TRAILING_STAMP);
-  if (trail) return { message: line.slice(0, trail.index).trim(), date: findDate(trail[0]) };
+  if (trail) {
+    const date = findDate(trail[0].replace(/^[\s\-–|]+/, ""), now);
+    if (date) return { message: line.slice(0, trail.index).trim(), date };
+  }
   return { message: line, date: null };
 }
 
 /** A line that is only a date/time stamp (how dates often land when a list is copied out of a page). */
-function isDateOnly(line: string): boolean {
-  const { message, date } = splitStamp(line);
+function isDateOnly(line: string, now: Date): boolean {
+  const { message, date } = splitStamp(line, now);
   return date !== null && message.replace(/[\s,.\-–|]/g, "") === "";
+}
+
+/** Campus adds the term to class names ("Biology -S1", "Geometry - S2", "Art -Q3"); the app stores the plain name. */
+export function stripTerm(className: string): string {
+  return className.replace(/\s*-\s*(?:s|q|t|sem|semester|quarter|term)\s*\d\s*$/i, "").trim();
 }
 
 /**
@@ -56,13 +97,13 @@ export function splitTitleAndClass(text: string, knownClasses: string[]): { titl
   const positions: number[] = [];
   for (let i = lower.indexOf(" in "); i > 0; i = lower.indexOf(" in ", i + 1)) positions.push(i);
   for (const i of positions) {
-    const cls = known.get(normalize(text.slice(i + 4)));
+    const cls = known.get(normalize(stripTerm(text.slice(i + 4))));
     if (cls && text.slice(0, i).trim()) return { title: text.slice(0, i).trim(), className: cls };
   }
   const idx = positions[positions.length - 1];
   if (idx === undefined) return null;
   const title = text.slice(0, idx).trim();
-  const className = text.slice(idx + 4).trim();
+  const className = stripTerm(text.slice(idx + 4));
   return title && className ? { title, className } : null;
 }
 
@@ -70,22 +111,23 @@ function parseFlags(s: string | undefined): string[] {
   return (s ?? "").split(/[,/]| and /i).map(f => f.trim().toLowerCase()).filter(Boolean);
 }
 
-export function parseInfiniteCampus(text: string, knownClasses: string[] = []): ParseResult {
+export function parseInfiniteCampus(text: string, knownClasses: string[] = [], now: Date = new Date()): ParseResult {
   const lines = text.split(/\r?\n/).map(l => l.replace(/\s+/g, " ").trim()).filter(Boolean);
   const parsed: (ImportedItem | { skipped: SkippedLine })[] = [];
   let lastItem: ImportedItem | null = null;
   let pendingDate: string | null = null;
 
   for (const line of lines) {
-    if (isDateOnly(line)) {
+    if (isDateOnly(line, now)) {
       // A stamp on its own line belongs to the notification just above it, unless that one already has a date —
       // then it's a header for the next one.
-      if (lastItem && !lastItem.date) lastItem.date = findDate(line);
-      else pendingDate = findDate(line);
+      const date = splitStamp(line, now).date;
+      if (lastItem && !lastItem.date) lastItem.date = date;
+      else pendingDate = date;
       continue;
     }
 
-    const { message, date: inlineDate } = splitStamp(line);
+    const { message, date: inlineDate } = splitStamp(line, now);
     let item: ImportedItem | null = null;
     const score = message.match(SCORE);
     const flagged = !score && message.match(FLAGGED);
@@ -143,7 +185,7 @@ export const infiniteCampus: GradeSource = {
   id: "infinite-campus",
   name: "Infinite Campus",
   instructions:
-    "In the Campus Parent portal, open Notifications, select the whole list, copy it, and paste it below. " +
-    "Score and Missing notifications are read; everything else is ignored.",
+    "In Campus, open the notifications (the bell) and take screenshots of the list — scroll and take more if it's long. " +
+    "Score and Missing notifications are read; attendance and semester grades are ignored.",
   parse: parseInfiniteCampus,
 };

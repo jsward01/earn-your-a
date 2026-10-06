@@ -214,3 +214,61 @@ describe("buildPlan", () => {
     expect(row.kind).toBe("new");
   });
 });
+
+describe("real Campus screenshot (Oct 5, 2026)", () => {
+  // As the screenshot reader returns it: one notification per line, " | " then the stamp shown under it.
+  const NOW = new Date(2026, 9, 5, 13, 0); // Mon Oct 5 2026, 1pm local
+  const LIVE = ["Biology", "CE / Computer Tech I A+", "English 10", "Geometry", "Spanish II", "World Geo & Civilizations"];
+  const text = [
+    "Susana was marked Present in CE / Computer Tech I A+ on 10/05/2026 | Today, 12:42 PM",
+    "Susana received a score of 20 out of 20 on DNA & CELL CYCLE HW in Biology -S1 | Today, 11:01 AM",
+    "Susana has an updated grade of A (91.52%) in Biology -S1: Semester Grade | Today, 11:01 AM",
+    "Susana received a score of 10 out of 10 on Population Handout #6 in World Geo & Civilizations -S1 | Today, 9:54 AM",
+    "Susana has an updated grade of B (85.96%) in World Geo & Civilizations -S1: Semester Grade | Today, 9:54 AM",
+  ].join("\n");
+
+  it("reads the two scores, ignores attendance and semester grades", () => {
+    const { items, skipped } = parseInfiniteCampus(text, LIVE, NOW);
+    expect(skipped).toEqual([]);
+    expect(items.map(i => [i.title, i.className, i.grade, i.date])).toEqual([
+      ["DNA & CELL CYCLE HW", "Biology", 100, "2026-10-05"],
+      ["Population Handout #6", "World Geo & Civilizations", 100, "2026-10-05"],
+    ]);
+  });
+
+  it("matches existing work despite the -S1 suffix", () => {
+    const existing = a({ id: "1", title: "DNA & Cell Cycle HW", subject: "Biology" });
+    const rows = buildPlan(parseInfiniteCampus(text, LIVE, NOW).items, [existing]);
+    expect(rows[0]).toMatchObject({ kind: "update", existing });
+    expect(rows[1].kind).toBe("new");
+  });
+
+  it("strips the term suffix even for a class the app hasn't seen", () => {
+    expect(parseInfiniteCampus("Susana received a score of 1 out of 2 on Sketch in Art I - S2", [], NOW).items[0].className).toBe("Art I");
+  });
+
+  it("stamps on their own line (as wrapped in the panel)", () => {
+    const { items } = parseInfiniteCampus(
+      "Susana received a score of 20 out of 20 on DNA & CELL CYCLE HW in Biology -S1\nToday, 11:01 AM\n" +
+        "Susana received a score of 3 out of 4 on Old HW in Biology -S1\nYesterday, 4:00 PM",
+      LIVE, NOW,
+    );
+    expect(items.map(i => i.date)).toEqual(["2026-10-05", "2026-10-04"]);
+  });
+});
+
+describe("relative and yearless dates", () => {
+  const NOW = new Date(2026, 9, 5, 13, 0); // Monday
+  it.each([
+    ["Today, 12:42 PM", "2026-10-05"],
+    ["Yesterday, 9:00 AM", "2026-10-04"],
+    ["Friday, 3:15 PM", "2026-10-02"],
+    ["Mon 8:00 AM", "2026-10-05"],
+    ["10/02, 3:15 PM", "2026-10-02"],
+    ["Oct 2, 3:15 PM", "2026-10-02"],
+    ["Dec 20", "2025-12-20"], // in the future this year → last year
+    ["9/30/2026 9:00 AM", "2026-09-30"],
+  ])("%s → %s", (stamp, date) => {
+    expect(findDate(stamp, NOW)).toBe(date);
+  });
+});

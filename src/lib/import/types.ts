@@ -39,5 +39,5 @@ export interface GradeSource {
   /** Where to copy from, in plain words, shown above the paste box. */
   instructions: string;
   /** `knownClasses` (subjects already in the app) helps split "NAME in CLASS" when a title itself contains " in ". */
-  parse(text: string, knownClasses: string[]): ParseResult;
+  parse(text: string, knownClasses: string[], now?: Date): ParseResult;
 }

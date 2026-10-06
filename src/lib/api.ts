@@ -309,3 +309,13 @@ export async function createAdjustment(amount: number, reason: string): Promise<
   });
   return (await parseJsonOrThrow(res)) as { adjustment: Adjustment; balance: number };
 }
+
+/** Parent-only: have the server read notification screenshots into text lines (nothing is saved). */
+export async function readScreenshots(images: { mediaType: string; data: string }[]): Promise<{ text: string; truncated: boolean }> {
+  const res = await fetch("/api/import/read-screenshots", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ images }),
+  });
+  return (await parseJsonOrThrow(res)) as { text: string; truncated: boolean };
+}

@@ -319,3 +319,32 @@ export async function readScreenshots(images: { mediaType: string; data: string 
   });
   return (await parseJsonOrThrow(res)) as { text: string; truncated: boolean };
 }
+
+export interface ImportIgnore {
+  id: string;
+  classKey: string;
+  titleKey: string;
+  className: string;
+  title: string;
+  createdAt: string;
+  createdByName: string | null;
+}
+
+export async function fetchImportIgnores(): Promise<ImportIgnore[]> {
+  const res = await fetch(scoped("/api/import-ignores"));
+  return (await parseJsonOrThrow(res)) as ImportIgnore[];
+}
+
+export async function ignoreImportItem(className: string, title: string): Promise<ImportIgnore> {
+  const res = await fetch(scoped("/api/import-ignores"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ className, title }),
+  });
+  return (await parseJsonOrThrow(res)) as ImportIgnore;
+}
+
+export async function unignoreImportItem(id: string): Promise<void> {
+  const res = await fetch(`/api/import-ignores/${id}`, { method: "DELETE" });
+  await parseJsonOrThrow(res);
+}

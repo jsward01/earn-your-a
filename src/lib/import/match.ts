@@ -3,7 +3,7 @@ import { importKey, normalize } from "./normalize";
 import type { ImportedItem } from "./types";
 import { penaltyAmountFor, rewardAmountFor, type RewardRules } from "../rewards";
 
-export type PlanKind = "new" | "update" | "unchanged" | "locked";
+export type PlanKind = "new" | "update" | "unchanged" | "locked" | "ignored";
 
 export interface PlanRow {
   item: ImportedItem;
@@ -18,6 +18,15 @@ export interface PlanRow {
   note: string;
   /** For new work: an app item in the same class with a near-identical title (likely the same assignment). */
   similar?: Assignment;
+  /** For ignored rows: the saved ignore entry, so it can be undone. */
+  ignoreId?: string;
+}
+
+/** A saved "ignore this on future imports" entry, matched by normalized class + title. */
+export interface IgnoreKey {
+  id: string;
+  classKey: string;
+  titleKey: string;
 }
 
 /** Guess the kind of work from its name: Campus has no type field, but names often say TEST or QUIZ. */
@@ -37,7 +46,8 @@ function describe(a: Assignment): string {
  * Compare imported items with the student's assignments (matched by class + title, ignoring case and punctuation).
  * Only items that would actually change something are pre-ticked.
  */
-export function buildPlan(items: ImportedItem[], assignments: Assignment[]): PlanRow[] {
+export function buildPlan(items: ImportedItem[], assignments: Assignment[], ignores: IgnoreKey[] = []): PlanRow[] {
+  const ignored = new Map(ignores.map(i => [`${i.classKey}\u0000${i.titleKey}`, i.id]));
   const byKey = new Map<string, Assignment>();
   for (const a of assignments) {
     const key = importKey(a.subject, a.title);
@@ -49,6 +59,10 @@ export function buildPlan(items: ImportedItem[], assignments: Assignment[]): Pla
     const incoming = item.status === "graded" ? `${item.grade}%` : item.status;
 
     if (!existing) {
+      const ignoreId = ignored.get(importKey(item.className, item.title));
+      if (ignoreId) {
+        return { item, kind: "ignored", existing, type: guessType(item.title), selected: false, note: "You chose to ignore this one", ignoreId };
+      }
       const note = item.status === "pending" ? "Not in the app yet — no score yet, so it's added as upcoming work" : "Not in the app yet";
       return { item, kind: "new", existing, type: guessType(item.title), selected: true, note };
     }

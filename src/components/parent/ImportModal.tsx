@@ -1,11 +1,14 @@
 import { useMemo, useRef, useState } from "react";
 import type { Assignment, AssignmentType } from "../../types";
-import { createAssignment, fetchRewardSummary, readScreenshots, updateAssignment } from "../../lib/api";
+import {
+  createAssignment, fetchImportIgnores, fetchRewardSummary, ignoreImportItem, readScreenshots, unignoreImportItem, updateAssignment,
+} from "../../lib/api";
 import { fileToScreenshotUpload } from "../../lib/screenshotImage";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import { GRADE_SOURCES } from "../../lib/import/sources";
-import { buildPlan, estimateDelta, knownClasses, notInList, type PlanKind, type PlanRow } from "../../lib/import/match";
-import type { SkippedLine } from "../../lib/import/types";
+import { buildPlan, estimateDelta, knownClasses, notInList, type IgnoreKey, type PlanKind, type PlanRow } from "../../lib/import/match";
+import { importKey } from "../../lib/import/normalize";
+import type { ImportedItem, SkippedLine } from "../../lib/import/types";
 
 interface ImportModalProps {
   assignments: Assignment[];
@@ -28,7 +31,9 @@ const SECTIONS: { kind: PlanKind; title: string; hint: string }[] = [
   { kind: "update", title: "Updates", hint: "Grade or status changed" },
   { kind: "locked", title: "Paid out — can't change", hint: "Fix these with ± Adjust on the Balance page" },
   { kind: "unchanged", title: "Already up to date", hint: "" },
+  { kind: "ignored", title: "Ignored", hint: "You chose not to import these. They stay here on every import until you stop ignoring them." },
 ];
+const COLLAPSIBLE: PlanKind[] = ["unchanged", "ignored"];
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
 
@@ -46,7 +51,13 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
-  const [showUnchanged, setShowUnchanged] = useState(false);
+  const [expanded, setExpanded] = useState<PlanKind[]>([]);
+  const [items, setItems] = useState<ImportedItem[]>([]);
+  // The modal's own copy, so a "Same assignment" rename shows immediately without waiting for the app to reload.
+  const [appAssignments, setAppAssignments] = useState<Assignment[]>(assignments);
+  const [ignores, setIgnores] = useState<IgnoreKey[]>([]);
+  const [busyRow, setBusyRow] = useState<number | null>(null);
+  const [rowError, setRowError] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
   const [readNote, setReadNote] = useState<string | null>(null);
@@ -54,15 +65,67 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
 
   const selected = useMemo(() => rows.filter(r => r.selected), [rows]);
   const estimate = useMemo(() => selected.reduce((sum, r) => sum + estimateDelta(r, rules), 0), [selected, rules]);
-  const missingFromList = useMemo(() => (complete ? notInList(rows, assignments) : []), [complete, rows, assignments]);
+  const missingFromList = useMemo(() => (complete ? notInList(rows, appAssignments) : []), [complete, rows, appAssignments]);
 
-  function review(input: string) {
-    const result = source.parse(input, knownClasses(assignments));
-    setRows(buildPlan(result.items, assignments));
+  async function review(input: string) {
+    const result = source.parse(input, knownClasses(appAssignments));
+    // If the ignore list can't load, show everything rather than block the import.
+    const saved = await fetchImportIgnores().catch(err => { console.error("Failed to load ignored imports", err); return []; });
+    setItems(result.items);
+    setIgnores(saved);
+    setRows(buildPlan(result.items, appAssignments, saved));
     setSkipped(result.skipped);
     setComplete(result.complete);
+    setRowError(null);
     setStep("review");
   }
+
+  /** Re-match after an ignore/rename, keeping the parent's ticks and type choices on rows that didn't change kind. */
+  function rebuild(nextAssignments: Assignment[], nextIgnores: IgnoreKey[]) {
+    setRows(prev => {
+      const before = new Map(prev.map(r => [importKey(r.item.className, r.item.title), r]));
+      return buildPlan(items, nextAssignments, nextIgnores).map(r => {
+        const old = before.get(importKey(r.item.className, r.item.title));
+        return old && old.kind === r.kind ? { ...r, selected: old.selected, type: old.type } : r;
+      });
+    });
+  }
+
+  async function rowAction(i: number, action: () => Promise<void>) {
+    setBusyRow(i);
+    setRowError(null);
+    try {
+      await action();
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : "That didn't work — try again");
+    } finally {
+      setBusyRow(null);
+    }
+  }
+
+  const handleIgnore = (r: PlanRow, i: number) => rowAction(i, async () => {
+    const entry = await ignoreImportItem(r.item.className, r.item.title);
+    const next = [...ignores.filter(x => x.id !== entry.id), entry];
+    setIgnores(next);
+    rebuild(appAssignments, next);
+  });
+
+  const handleUnignore = (r: PlanRow, i: number) => rowAction(i, async () => {
+    await unignoreImportItem(r.ignoreId!);
+    const next = ignores.filter(x => x.id !== r.ignoreId);
+    setIgnores(next);
+    rebuild(appAssignments, next);
+  });
+
+  // The app's item and the school's are the same assignment: take the school's name so future imports match exactly.
+  // Only the title changes, so the reward doesn't.
+  const handleSameAs = (r: PlanRow, i: number) => rowAction(i, async () => {
+    const renamed = await updateAssignment(r.similar!.id, { title: r.item.title });
+    const next = appAssignments.map(a => (a.id === renamed.id ? renamed : a));
+    setAppAssignments(next);
+    rebuild(next, ignores);
+    onImported();
+  });
 
   async function handleScreenshots(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -133,7 +196,7 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
           <input type="checkbox" checked={r.selected} onChange={e => patchRow(i, { selected: e.target.checked })}
             className="mt-1 h-4 w-4 shrink-0 accent-indigo-600" aria-label={`Import ${r.item.title}`} />
         ) : (
-          <span className="mt-0.5 w-4 shrink-0 text-center text-sm">{r.kind === "locked" ? "🔒" : "✓"}</span>
+          <span className="mt-0.5 w-4 shrink-0 text-center text-sm">{r.kind === "locked" ? "🔒" : r.kind === "ignored" ? "–" : "✓"}</span>
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -149,6 +212,28 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
             {r.kind === "new" && <span className="text-xs text-gray-400">Due {r.item.date ?? "today"}{r.item.dueDateExact ? "" : " (approx.)"}</span>}
           </div>
           <p className="text-xs text-gray-400 mt-0.5">{r.note}</p>
+          {(r.kind === "new" || r.kind === "ignored") && (
+            <div className="flex gap-2 mt-1.5 flex-wrap">
+              {r.kind === "new" && r.similar && (
+                <button onClick={() => handleSameAs(r, i)} disabled={busyRow !== null}
+                  className="text-xs bg-indigo-50 text-indigo-700 font-medium px-2.5 py-1 rounded-lg disabled:opacity-40">
+                  {busyRow === i ? "Saving…" : "Same assignment — use this name"}
+                </button>
+              )}
+              {r.kind === "new" && (
+                <button onClick={() => handleIgnore(r, i)} disabled={busyRow !== null}
+                  className="text-xs bg-gray-100 text-gray-600 font-medium px-2.5 py-1 rounded-lg disabled:opacity-40">
+                  {busyRow === i && !r.similar ? "Saving…" : "Ignore"}
+                </button>
+              )}
+              {r.kind === "ignored" && (
+                <button onClick={() => handleUnignore(r, i)} disabled={busyRow !== null}
+                  className="text-xs bg-gray-100 text-gray-600 font-medium px-2.5 py-1 rounded-lg disabled:opacity-40">
+                  {busyRow === i ? "Saving…" : "Stop ignoring"}
+                </button>
+              )}
+            </div>
+          )}
           {selectable && r.selected && (
             <select value={r.type} onChange={e => patchRow(i, { type: e.target.value as AssignmentType })}
               aria-label={`Type for ${r.item.title}`}
@@ -223,20 +308,23 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
               </p>
             )}
 
+            {rowError && <p className="text-sm text-red-500">{rowError}</p>}
+
             {SECTIONS.map(sec => {
               const list = rows.map((r, i) => [r, i] as const).filter(([r]) => r.kind === sec.kind);
               if (list.length === 0) return null;
-              const collapsed = sec.kind === "unchanged" && !showUnchanged;
+              const collapsible = COLLAPSIBLE.includes(sec.kind);
+              const collapsed = collapsible && !expanded.includes(sec.kind);
               return (
                 <div key={sec.kind} className="rounded-2xl border border-gray-100 overflow-hidden">
                   <button
-                    onClick={() => sec.kind === "unchanged" && setShowUnchanged(v => !v)}
+                    onClick={() => collapsible && setExpanded(v => (v.includes(sec.kind) ? v.filter(k => k !== sec.kind) : [...v, sec.kind]))}
                     className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 text-left">
                     <div>
                       <p className="text-sm font-semibold text-gray-700">{sec.title} ({list.length})</p>
                       {sec.hint && <p className="text-xs text-gray-400">{sec.hint}</p>}
                     </div>
-                    {sec.kind === "unchanged" && <span className="text-xs text-indigo-600">{collapsed ? "Show" : "Hide"}</span>}
+                    {collapsible && <span className="text-xs text-indigo-600">{collapsed ? "Show" : "Hide"}</span>}
                   </button>
                   {!collapsed && <div className="divide-y divide-gray-50">{list.map(([r, i]) => rowView(r, i))}</div>}
                 </div>

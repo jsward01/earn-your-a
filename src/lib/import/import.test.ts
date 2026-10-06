@@ -400,3 +400,35 @@ describe("near-duplicates, not-in-list, estimate", () => {
     expect(rows.map(r => estimateDelta(r, RULES))).toEqual([20, 3, -10, 0]);
   });
 });
+
+describe("ignored items", () => {
+  const parsed = () =>
+    parseInfiniteCampus("Thursday 09/03/2026\nAssignment\nExtra Credit Sheet\nGeometry -S1\nScore\n5/5\nAssignment\nHW 9\nGeometry -S1\nScore\n1/1", ["Geometry"]).items;
+
+  it("an ignored new item is shown as ignored, unticked, with its id", () => {
+    const rows = buildPlan(parsed(), [], [{ id: "ig1", classKey: "geometry", titleKey: "extra credit sheet" }]);
+    expect(rows.map(r => [r.item.title, r.kind, r.selected, r.ignoreId ?? null])).toEqual([
+      ["Extra Credit Sheet", "ignored", false, "ig1"],
+      ["HW 9", "new", true, null],
+    ]);
+  });
+
+  it("matches the ignore regardless of case and punctuation", () => {
+    const [row] = buildPlan(parsed(), [], [{ id: "ig1", classKey: "geometry", titleKey: "extra credit sheet" }]);
+    expect(row.kind).toBe("ignored");
+  });
+
+  it("an ignore never hides work that is already in the app", () => {
+    const existing = a({ id: "e", title: "Extra Credit Sheet", status: "pending" });
+    const [row] = buildPlan(parsed(), [existing], [{ id: "ig1", classKey: "geometry", titleKey: "extra credit sheet" }]);
+    expect(row).toMatchObject({ kind: "update", existing });
+  });
+
+  it("an ignored item isn't flagged as a near-duplicate", () => {
+    const rows = buildPlan(parsed(), [a({ id: "x", title: "Extra Credit", subject: "Geometry", status: "graded", grade: 100 })], [
+      { id: "ig1", classKey: "geometry", titleKey: "extra credit sheet" },
+    ]);
+    expect(rows[0]).toMatchObject({ kind: "ignored" });
+    expect(rows[0].similar).toBeUndefined();
+  });
+});

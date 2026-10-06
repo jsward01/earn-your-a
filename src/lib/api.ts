@@ -284,3 +284,28 @@ export async function setStudentAvatar(userId: string, avatar: string | null): P
   });
   await parseJsonOrThrow(res);
 }
+
+export interface Adjustment {
+  id: string;
+  /** Signed: + added to the balance, − taken away. */
+  amount: number;
+  reason: string;
+  /** The payout that settled (and locked) it; null while it's still in the current period. */
+  payoutId: string | null;
+  createdAt: string;
+  createdByName: string | null;
+}
+
+export async function fetchAdjustments(): Promise<Adjustment[]> {
+  const res = await fetch(scoped("/api/adjustments"));
+  return (await parseJsonOrThrow(res)) as Adjustment[];
+}
+
+export async function createAdjustment(amount: number, reason: string): Promise<{ adjustment: Adjustment; balance: number }> {
+  const res = await fetch(scoped("/api/adjustments"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ amount, reason }),
+  });
+  return (await parseJsonOrThrow(res)) as { adjustment: Adjustment; balance: number };
+}

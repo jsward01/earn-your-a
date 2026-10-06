@@ -220,6 +220,7 @@ export default function App() {
             onBack={() => setView("dashboard")}
             onEdit={a => setEditor({ assignment: a })}
             onAdd={() => setEditor({ assignment: null })}
+            onChanged={refreshSummary}
           />
         )}
         {isParent && view === "dashboard" && (

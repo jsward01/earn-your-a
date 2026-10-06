@@ -58,8 +58,8 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
 
   // One atomic batch (D1 runs a batch as a single transaction). Every write is guarded by "the request is still
   // pending" and the status flip comes LAST, so a double-tap, or two parents approving at once, can never deduct
-  // twice: the second batch runs after the first has set 'paid' and finds nothing to do. Approve = three writes
-  // (ledger deduction, archive/lock of the paid work, status); deny = just the status.
+  // twice: the second batch runs after the first has set 'paid' and finds nothing to do. Approve = four writes
+  // (ledger deduction, archive/lock of the paid work and of manual adjustments, status); deny = just the status.
   const db = context.env.DB;
   const stillPending = "EXISTS (SELECT 1 FROM payout_requests p WHERE p.id = ? AND p.status = 'pending')";
   const newStatus = body.action === "approve" ? "paid" : "denied";
@@ -75,6 +75,10 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
       // Paying out settles the period: archive (and so lock) the finished work that was paid for.
       db
         .prepare(`UPDATE assignments SET payout_id = ? WHERE student_id = ? AND ${ARCHIVE_ON_PAYOUT_WHERE} AND ${stillPending}`)
+        .bind(id, existing.student_id, id),
+      // Manual adjustments settle the same way: they move to that payout's Past Grades and can no longer be reversed there.
+      db
+        .prepare(`UPDATE reward_transactions SET payout_id = ? WHERE student_id = ? AND kind = 'adjustment' AND payout_id IS NULL AND ${stillPending}`)
         .bind(id, existing.student_id, id),
     );
   }

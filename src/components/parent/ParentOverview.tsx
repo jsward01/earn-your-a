@@ -6,6 +6,7 @@ import { rewardAmountFor } from "../../lib/rewards";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import { daysUntilDate } from "../../lib/dates";
 import { splitPending } from "../../lib/assignments";
+import { ImportModal } from "./ImportModal";
 
 interface ParentOverviewProps {
   assignments: Assignment[];
@@ -47,6 +48,7 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
   const [payoutAction, setPayoutAction] = useState<PayoutAction | null>(null);
   const [payouts, setPayouts] = useState<PayoutRequestRow[]>([]);
   const [resolving, setResolving] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const payoutPending = summary?.payoutPending ?? false;
   const pending = payouts.find(p => p.status === "pending");
 
@@ -100,7 +102,10 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
       <div className="flex items-center justify-between">
         <button onClick={() => setFilter("all")} aria-pressed={filter === "all"}
           className={`text-sm font-semibold px-4 py-2 rounded-lg border ${filter === "all" ? "bg-emerald-700 text-white border-emerald-700" : "bg-white text-gray-600 border-gray-200"}`}>All</button>
-        <button onClick={onAdd} className="text-sm bg-indigo-50 text-indigo-700 font-medium px-3 py-2 rounded-lg">+ Add assignment</button>
+        <div className="flex gap-2">
+          <button onClick={() => setShowImport(true)} className="text-sm bg-indigo-50 text-indigo-700 font-medium px-3 py-2 rounded-lg">⇩ Import grades</button>
+          <button onClick={onAdd} className="text-sm bg-indigo-50 text-indigo-700 font-medium px-3 py-2 rounded-lg">+ Add assignment</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-4 gap-2">
@@ -303,6 +308,14 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
             <button onClick={() => setShowPayoutModal(false)} className="w-full text-gray-400 text-sm">Cancel</button>
           </div>
         </div>
+      )}
+      {showImport && (
+        <ImportModal
+          assignments={assignments}
+          studentName={summary?.studentName ?? "your student"}
+          onClose={() => setShowImport(false)}
+          onImported={onChanged}
+        />
       )}
     </div>
   );

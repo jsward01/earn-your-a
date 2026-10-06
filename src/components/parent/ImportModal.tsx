@@ -2,9 +2,9 @@ import { useMemo, useRef, useState } from "react";
 import type { Assignment, AssignmentType } from "../../types";
 import { createAssignment, fetchRewardSummary, readScreenshots, updateAssignment } from "../../lib/api";
 import { fileToScreenshotUpload } from "../../lib/screenshotImage";
-import { useFormatAmount } from "../../lib/rewardSettingsContext";
+import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import { GRADE_SOURCES } from "../../lib/import/sources";
-import { buildPlan, knownClasses, type PlanKind, type PlanRow } from "../../lib/import/match";
+import { buildPlan, estimateDelta, knownClasses, notInList, type PlanKind, type PlanRow } from "../../lib/import/match";
 import type { SkippedLine } from "../../lib/import/types";
 
 interface ImportModalProps {
@@ -35,12 +35,14 @@ const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in loc
 /** Parent-only: paste a school system's notification list, review what it would change, then save the ticked rows. */
 export function ImportModal({ assignments, studentName, onClose, onImported }: ImportModalProps) {
   const fmt = useFormatAmount();
+  const rules = useRewardSettings();
   const [sourceId, setSourceId] = useState(GRADE_SOURCES[0].id);
   const source = GRADE_SOURCES.find(s => s.id === sourceId) ?? GRADE_SOURCES[0];
   const [text, setText] = useState("");
   const [step, setStep] = useState<Step>("paste");
   const [rows, setRows] = useState<PlanRow[]>([]);
   const [skipped, setSkipped] = useState<SkippedLine[]>([]);
+  const [complete, setComplete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -51,11 +53,14 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
   const fileInput = useRef<HTMLInputElement>(null);
 
   const selected = useMemo(() => rows.filter(r => r.selected), [rows]);
+  const estimate = useMemo(() => selected.reduce((sum, r) => sum + estimateDelta(r, rules), 0), [selected, rules]);
+  const missingFromList = useMemo(() => (complete ? notInList(rows, assignments) : []), [complete, rows, assignments]);
 
   function review(input: string) {
     const result = source.parse(input, knownClasses(assignments));
     setRows(buildPlan(result.items, assignments));
     setSkipped(result.skipped);
+    setComplete(result.complete);
     setStep("review");
   }
 
@@ -121,7 +126,7 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
 
   function rowView(r: PlanRow, i: number) {
     const selectable = r.kind === "new" || r.kind === "update";
-    const result = r.item.status === "graded" ? `${r.item.grade}%` : "Missing";
+    const result = r.item.status === "graded" ? `${r.item.grade}%` : r.item.status === "missing" ? "Missing" : "No score yet";
     return (
       <div key={i} className={`flex items-start gap-3 px-4 py-3 ${r.selected ? "" : "opacity-70"}`}>
         {selectable ? (
@@ -133,7 +138,7 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-semibold text-gray-800 break-words">{r.item.title}</p>
-            <p className={`text-sm font-bold shrink-0 ${r.item.status === "missing" ? "text-red-500" : "text-gray-700"}`}>{result}</p>
+            <p className={`text-sm font-bold shrink-0 ${r.item.status === "missing" ? "text-red-500" : r.item.status === "pending" ? "text-gray-400" : "text-gray-700"}`}>{result}</p>
           </div>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="text-xs text-gray-500">{r.item.className}</span>
@@ -141,7 +146,7 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
             {r.item.flags.map(f => (
               <span key={f} className="text-xs px-2 py-0.5 rounded-full border border-orange-200 text-orange-600 font-medium capitalize">{f}</span>
             ))}
-            {r.kind === "new" && <span className="text-xs text-gray-400">Due {r.item.date ?? "today"} (approx.)</span>}
+            {r.kind === "new" && <span className="text-xs text-gray-400">Due {r.item.date ?? "today"}{r.item.dueDateExact ? "" : " (approx.)"}</span>}
           </div>
           <p className="text-xs text-gray-400 mt-0.5">{r.note}</p>
           {selectable && r.selected && (
@@ -238,6 +243,20 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
               );
             })}
 
+            {missingFromList.length > 0 && (
+              <details className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2.5">
+                <summary className="text-sm font-semibold text-gray-700 cursor-pointer">In the app but not in this list ({missingFromList.length})</summary>
+                <p className="text-xs text-gray-500 mt-1">Renamed, dropped, or entered by mistake? Nothing here changes on import — open it from the Balance page if it needs fixing.</p>
+                <div className="mt-2 space-y-1">
+                  {missingFromList.map(x => (
+                    <p key={x.id} className="text-xs text-gray-600">
+                      <span className="font-medium">{x.title}</span> · {x.subject} · {x.status === "graded" ? `${x.grade}%` : x.status}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            )}
+
             {skipped.length > 0 && (
               <details className="rounded-2xl border border-gray-100 px-4 py-2.5">
                 <summary className="text-sm font-semibold text-gray-700 cursor-pointer">Skipped ({skipped.length})</summary>
@@ -252,6 +271,12 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
               </details>
             )}
 
+            {selected.length > 0 && estimate !== 0 && (
+              <p className="text-sm text-gray-600 text-center">
+                Estimated balance change: <span className={`font-semibold ${estimate > 0 ? "text-green-600" : "text-red-500"}`}>{fmt(estimate, { signed: true })}</span>
+                <span className="block text-xs text-gray-400">At today's reward amounts; the exact amount is set when each item saves.</span>
+              </p>
+            )}
             <div className="flex gap-2">
               <button onClick={() => setStep("paste")} disabled={saving} className="flex-1 bg-white text-gray-600 py-3 rounded-xl text-sm border border-gray-200 disabled:opacity-40">
                 ‹ Back

@@ -13,3 +13,8 @@ export function normalize(s: string): string {
 export function importKey(className: string, title: string): string {
   return `${normalize(className)}\u0000${normalize(title)}`;
 }
+
+/** Campus adds the term to class names ("Biology -S1", "Geometry - S2", "Art -Q3"); the app stores the plain name. */
+export function stripTerm(className: string): string {
+  return className.replace(/\s*-\s*(?:s|q|t|sem|semester|quarter|term)\s*\d\s*$/i, "").trim();
+}

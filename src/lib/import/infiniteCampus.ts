@@ -1,5 +1,8 @@
 import type { GradeSource, ImportedItem, ParseResult, SkippedLine } from "./types";
-import { importKey, normalize } from "./normalize";
+import { importKey, normalize, stripTerm } from "./normalize";
+
+export { stripTerm };
+import { looksLikeAssignmentList, parseAssignmentList } from "./infiniteCampusAssignments";
 
 // Infinite Campus parent-portal notifications (checked against the real list, Sep 21 2026):
 //   "Susana received a score of 8 out of 10 on Concept Check 1.2 in Geometry"
@@ -82,11 +85,6 @@ function isDateOnly(line: string, now: Date): boolean {
   return date !== null && message.replace(/[\s,.\-–|]/g, "") === "";
 }
 
-/** Campus adds the term to class names ("Biology -S1", "Geometry - S2", "Art -Q3"); the app stores the plain name. */
-export function stripTerm(className: string): string {
-  return className.replace(/\s*-\s*(?:s|q|t|sem|semester|quarter|term)\s*\d\s*$/i, "").trim();
-}
-
 /**
  * Split "NAME in CLASS". A title can itself contain " in " ("Practice in Pairs in Geometry"), so prefer a class the
  * app already knows (longest match wins); otherwise split at the last " in ".
@@ -111,7 +109,12 @@ function parseFlags(s: string | undefined): string[] {
   return (s ?? "").split(/[,/]| and /i).map(f => f.trim().toLowerCase()).filter(Boolean);
 }
 
+/** Campus has two copyable/readable lists: the Assignments list (dated blocks) and the notification feed. Pick by shape. */
 export function parseInfiniteCampus(text: string, knownClasses: string[] = [], now: Date = new Date()): ParseResult {
+  return looksLikeAssignmentList(text) ? parseAssignmentList(text, knownClasses) : parseNotifications(text, knownClasses, now);
+}
+
+export function parseNotifications(text: string, knownClasses: string[] = [], now: Date = new Date()): ParseResult {
   const lines = text.split(/\r?\n/).map(l => l.replace(/\s+/g, " ").trim()).filter(Boolean);
   const parsed: (ImportedItem | { skipped: SkippedLine })[] = [];
   let lastItem: ImportedItem | null = null;
@@ -143,7 +146,7 @@ export function parseInfiniteCampus(text: string, knownClasses: string[] = [], n
         continue;
       }
       item = {
-        ...split, status: "graded", grade: Math.max(0, Math.round((earned / possible) * 100)),
+        ...split, status: "graded", dueDateExact: false, grade: Math.max(0, Math.round((earned / possible) * 100)),
         points: { earned, possible }, flags, date: null, raw: line,
       };
     } else if (flagged) {
@@ -153,7 +156,7 @@ export function parseInfiniteCampus(text: string, knownClasses: string[] = [], n
       if (!split) { parsed.push({ skipped: { raw: line, reason: "Couldn't tell the assignment name from the class" } }); continue; }
       if (flags.includes("dropped")) { parsed.push({ skipped: { raw: line, reason: "Dropped in Campus (doesn't count)" } }); continue; }
       if (!flags.includes("missing")) continue; // e.g. a Late flag on its own — the score notification carries the grade
-      item = { ...split, status: "missing", grade: null, points: null, flags: flags.filter(f => f !== "missing"), date: null, raw: line };
+      item = { ...split, status: "missing", dueDateExact: false, grade: null, points: null, flags: flags.filter(f => f !== "missing"), date: null, raw: line };
     } else {
       continue; // noise: semester grades, attendance, headings
     }
@@ -178,14 +181,14 @@ export function parseInfiniteCampus(text: string, knownClasses: string[] = [], n
       byKey.set(key, p);
     }
   }
-  return { items, skipped };
+  return { items, skipped, complete: false };
 }
 
 export const infiniteCampus: GradeSource = {
   id: "infinite-campus",
   name: "Infinite Campus",
   instructions:
-    "In Campus, open the notifications (the bell) and take screenshots of the list — scroll and take more if it's long. " +
-    "Score and Missing notifications are read; attendance and semester grades are ignored.",
+    "Best: in Campus open Grades → Assignments (the list grouped by date), select it all, copy, and paste below — it has real due dates and upcoming work. " +
+    "Or screenshot the notifications (the bell) and upload them.",
   parse: parseInfiniteCampus,
 };

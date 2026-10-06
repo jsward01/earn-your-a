@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Assignment } from "../../types";
 import { findDate, parseInfiniteCampus, splitStamp, splitTitleAndClass } from "./infiniteCampus";
-import { buildPlan, guessType } from "./match";
+import { buildPlan, estimateDelta, guessType, notInList } from "./match";
+import { DEFAULT_REWARD_SETTINGS } from "../rewards";
 
 const CLASSES = ["Geometry", "Biology", "CE / Computer Tech I A", "World Geo & Civilizations", "Spanish II", "English 10"];
 
@@ -39,7 +40,7 @@ describe("parseInfiniteCampus", () => {
       "Mark all as read",
       "",
     ].join("\n");
-    expect(parseInfiniteCampus(text, CLASSES)).toEqual({ items: [], skipped: [] });
+    expect(parseInfiniteCampus(text, CLASSES)).toEqual({ items: [], skipped: [], complete: false });
   });
 
   it("handles extra whitespace, curly apostrophes and trailing periods", () => {
@@ -270,5 +271,132 @@ describe("relative and yearless dates", () => {
     ["9/30/2026 9:00 AM", "2026-09-30"],
   ])("%s → %s", (stamp, date) => {
     expect(findDate(stamp, NOW)).toBe(date);
+  });
+});
+
+describe("Campus Assignments list (copied from the page)", () => {
+  // Same layout as a real copy of Grades → Assignments; titles and scores made up.
+  const LIST = [
+    "Friday 08/14/2026",
+    "Assignment", "Warm-Up 8/14 Vocab", "Spanish II -S1", "Score", "1/1(100%)",
+    "Thursday 08/20/2026",
+    "Assignment", "Lab Safety Contract", "Biology -S1", "Score", "10/10(100%)",
+    "Assignment", "Penny Lab", "Biology -S1", "Dropped", "Score", "18/20(90%)",
+    "Assignment", "Concept Check 1.2", "Geometry -S1", "Score", "4/7(57.14%)",
+    "Wednesday 08/26/2026",
+    "Assignment", "Module 1 Quiz", "Geometry -S1", "Score", "21/33(63.63%)",
+    "Assignment", "Map Poster", "World Geo & Civilizations -S1", "CommentsDone in class", "Score", "10/10(100%)",
+    "Thursday 09/03/2026",
+    "Assignment", "Reading Answers", "Spanish II -S1", "CommentsCompleted 9/16", "Late", "Score", "3/3(100%)",
+    "Thursday 09/24/2026",
+    "Assignment", "Writing Quiz - Weekends", "Spanish II -S1", "Score", "13.5/15(90%)",
+    "Monday 09/28/2026",
+    "Assignment", "Quizlet Learn - Pastimes", "Spanish II -S1", "Missing", "Score", "0/1(0%)",
+    "Friday 10/02/2026",
+    "Assignment", "Jobs", "CE / Computer Tech I A+",
+    "Monday 10/05/2026", "Today",
+    "Assignment", "Cell Cycle HW", "Biology -S1", "Score", "20/20(100%)",
+    "Tuesday 10/06/2026",
+    "Assignment", "Listening Quiz - Weather", "Spanish II -S1",
+  ].join("\n");
+  const LIVE = ["Biology", "CE / Computer Tech I A+", "English 10", "Geometry", "Spanish II", "World Geo & Civilizations"];
+
+  it("is detected and parsed instead of the notification format", () => {
+    const { items, skipped } = parseInfiniteCampus(LIST, LIVE);
+    expect(items.map(i => [i.title, i.className, i.status, i.grade, i.date])).toEqual([
+      ["Warm-Up 8/14 Vocab", "Spanish II", "graded", 100, "2026-08-14"],
+      ["Lab Safety Contract", "Biology", "graded", 100, "2026-08-20"],
+      ["Concept Check 1.2", "Geometry", "graded", 57, "2026-08-20"],
+      ["Module 1 Quiz", "Geometry", "graded", 64, "2026-08-26"],
+      ["Map Poster", "World Geo & Civilizations", "graded", 100, "2026-08-26"],
+      ["Reading Answers", "Spanish II", "graded", 100, "2026-09-03"],
+      ["Writing Quiz - Weekends", "Spanish II", "graded", 90, "2026-09-24"],
+      ["Quizlet Learn - Pastimes", "Spanish II", "missing", null, "2026-09-28"],
+      ["Jobs", "CE / Computer Tech I A+", "pending", null, "2026-10-02"],
+      ["Cell Cycle HW", "Biology", "graded", 100, "2026-10-05"],
+      ["Listening Quiz - Weather", "Spanish II", "pending", null, "2026-10-06"],
+    ]);
+    expect(items.every(i => i.dueDateExact)).toBe(true);
+    expect(skipped).toEqual([expect.objectContaining({ reason: expect.stringMatching(/Dropped/) })]);
+  });
+
+  it("keeps Late as a tag, ignores comments, uses the real class spelling", () => {
+    const item = parseInfiniteCampus(LIST, LIVE).items.find(i => i.title === "Reading Answers")!;
+    expect(item.flags).toEqual(["late"]);
+    expect(parseInfiniteCampus(LIST, LIVE).items.find(i => i.title === "Jobs")!.className).toBe("CE / Computer Tech I A+");
+  });
+
+  it("strips the term suffix for a class the app hasn't seen", () => {
+    const { items } = parseInfiniteCampus("Monday 10/05/2026\nAssignment\nSketch\nArt I -S1\nScore\n5/5(100%)", []);
+    expect(items[0].className).toBe("Art I");
+  });
+
+  it("skips letter-grade and out-of-0 scores with a reason", () => {
+    const { items, skipped } = parseInfiniteCampus(
+      "Monday 10/05/2026\nAssignment\nBonus\nGeometry -S1\nScore\n2/0\nAssignment\nEssay\nEnglish 10 -S1\nScore\nA-",
+      LIVE,
+    );
+    expect(items).toEqual([]);
+    expect(skipped.map(s => s.reason)).toEqual([expect.stringMatching(/Out of 0/), expect.stringMatching(/in points/i)]);
+  });
+
+  it("pending work: added when new, never overwrites an existing grade", () => {
+    const parsed = parseInfiniteCampus(LIST, LIVE).items.filter(i => i.status === "pending");
+    const rows = buildPlan(parsed, [a({ title: "Jobs", subject: "CE / Computer Tech I A+", status: "graded", grade: 100 })]);
+    expect(rows.map(r => [r.item.title, r.kind, r.selected])).toEqual([
+      ["Jobs", "unchanged", false],
+      ["Listening Quiz - Weather", "new", true],
+    ]);
+    expect(rows[1].type).toBe("quiz");
+  });
+
+  it("missing with a 0 score is saved as missing", () => {
+    const [row] = buildPlan(parseInfiniteCampus(LIST, LIVE).items.filter(i => i.title.startsWith("Quizlet")), [
+      a({ title: "Quizlet Learn - Pastimes", subject: "Spanish II" }),
+    ]);
+    expect(row).toMatchObject({ kind: "update", selected: true, note: "pending → missing" });
+  });
+});
+
+describe("near-duplicates, not-in-list, estimate", () => {
+  const RULES = { ...DEFAULT_REWARD_SETTINGS };
+  const list = (lines: string[]) => parseInfiniteCampus(["Thursday 09/03/2026", ...lines].join("\n"), ["Spanish II", "Geometry"]);
+
+  it("flags a longer Campus title that starts with an app title in the same class, unticked", () => {
+    const existing = a({ id: "d", title: "Daniel el Detective", subject: "Spanish II", status: "graded", grade: 93 });
+    const [row] = buildPlan(list(["Assignment", "Daniel el Detective - Reading Assessment", "Spanish II -S1", "Score", "28/30(93.33%)"]).items, [existing]);
+    expect(row).toMatchObject({ kind: "new", selected: false, similar: existing });
+  });
+
+  it("does not flag different classes or mere word overlap", () => {
+    const rows = buildPlan(
+      list([
+        "Assignment", "Daniel el Detective - Reading", "Geometry -S1", "Score", "1/1",
+        "Assignment", "Module 10 Review", "Geometry -S1", "Score", "1/1",
+      ]).items,
+      [a({ title: "Daniel el Detective", subject: "Spanish II" }), a({ id: "m", title: "Module 1", subject: "Geometry" })],
+    );
+    expect(rows.map(r => [r.kind, r.selected, r.similar?.id ?? null])).toEqual([["new", true, null], ["new", true, null]]);
+  });
+
+  it("lists graded/missing app work a complete list doesn't mention", () => {
+    const parsed = list(["Assignment", "HW 1", "Geometry -S1", "Score", "1/1"]);
+    expect(parsed.complete).toBe(true);
+    const app = [a({ id: "1", title: "HW 1" }), a({ id: "2", title: "Old Quiz", status: "graded", grade: 0 }), a({ id: "3", title: "Upcoming" })];
+    expect(notInList(buildPlan(parsed.items, app), app).map(x => x.id)).toEqual(["2"]);
+    expect(parseInfiniteCampus("Susana received a score of 1 out of 1 on HW 1 in Geometry", []).complete).toBe(false);
+  });
+
+  it("estimates the balance change against what the ledger holds now", () => {
+    const rows = buildPlan(
+      list([
+        "Assignment", "Unit Test", "Geometry -S1", "Score", "15/20",   // new test 75% → +20
+        "Assignment", "HW 2", "Geometry -S1", "Score", "1/1",          // update from 0 recorded → +3
+        "Assignment", "Quiz 3", "Geometry -S1", "Score", "5/10",       // new quiz 50% → −10
+        "Assignment", "HW 4", "Geometry -S1", "Missing",               // missing → 0
+      ]).items,
+      [a({ id: "h", title: "HW 2", status: "graded", grade: 0, recordedReward: null })],
+    );
+    expect(rows.map(r => estimateDelta(r, RULES))).toEqual([20, 3, -10, 0]);
   });
 });

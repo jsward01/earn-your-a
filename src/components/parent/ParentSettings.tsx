@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { AuthUser, RewardSettings } from "../../types";
-import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
+import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, setRewardsStart, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
+import { formatDay } from "../../lib/dates";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
 import { AppearanceCard } from "../shared/AppearanceCard";
 import { Avatar } from "../shared/Avatar";
@@ -86,6 +87,25 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
   const [settings, setSettings] = useState<RewardSettings>(DEFAULT_REWARD_SETTINGS);
   const [accounts, setAccounts] = useState<FamilyAccount[]>([]);
   const [resettingId, setResettingId] = useState<string | null>(null);
+  const [editingStart, setEditingStart] = useState<string | null>(null);
+  const [startDraft, setStartDraft] = useState("");
+  const [savingStart, setSavingStart] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  async function handleSaveStart(studentId: string) {
+    setSavingStart(true);
+    setStartError(null);
+    try {
+      await setRewardsStart(studentId, startDraft);
+      setEditingStart(null);
+      loadAccounts();
+      onStudentsChanged(); // the header summary carries the date too
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : "Couldn't save the date");
+    } finally {
+      setSavingStart(false);
+    }
+  }
   const [resetResult, setResetResult] = useState<PasswordResetResult | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -317,6 +337,30 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
                         {a.isAdmin && <span className="ml-1 text-xs bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full font-semibold">Admin</span>}
                       </p>
                       <p className="text-xs text-gray-400 truncate">{a.email}</p>
+                      {a.role === "student" && (
+                        editingStart === a.id ? (
+                          <div className="mt-1.5 space-y-1.5">
+                            <label htmlFor={`start-${a.id}`} className="block text-xs font-medium text-gray-500">Rewards start on</label>
+                            <input id={`start-${a.id}`} type="date" max={new Date().toLocaleDateString("en-CA")} value={startDraft}
+                              onChange={e => setStartDraft(e.target.value)}
+                              className="border border-gray-200 rounded-lg px-2 py-1 text-xs" />
+                            <p className="text-xs text-gray-400">Applies to work added from now on; nothing already entered is re-priced.</p>
+                            {startError && <p className="text-xs text-red-500">{startError}</p>}
+                            <div className="flex gap-2">
+                              <button onClick={() => handleSaveStart(a.id)} disabled={!startDraft || savingStart}
+                                className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-medium disabled:opacity-40">{savingStart ? "Saving…" : "Save"}</button>
+                              <button onClick={() => setEditingStart(null)} className="text-xs text-gray-500 px-2">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Rewards start: {a.rewardsStartDate ? formatDay(a.rewardsStartDate) : "not set (asked on first import)"}
+                            {" · "}
+                            <button onClick={() => { setEditingStart(a.id); setStartDraft(a.rewardsStartDate ?? ""); setStartError(null); }}
+                              className="text-indigo-600 font-medium">Change</button>
+                          </p>
+                        )
+                      )}
                       {canReset && (
                         <button
                           onClick={() => handleReset(a.id)}

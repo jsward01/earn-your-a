@@ -15,7 +15,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if ("error" in resolved) return json({ error: resolved.error }, resolved.status);
   const { studentId } = resolved;
 
-  const studentRow = await context.env.DB.prepare("SELECT name, avatar FROM users WHERE id = ?").bind(studentId).first<{ name: string; avatar: string | null }>();
+  const studentRow = await context.env.DB
+    .prepare("SELECT name, avatar, rewards_start_date FROM users WHERE id = ?")
+    .bind(studentId)
+    .first<{ name: string; avatar: string | null; rewards_start_date: string | null }>();
   const settings = await getFullRewardSettings(context.env.DB, user.familyId);
   const balance = await getBalance(context.env.DB, studentId);
   const holdback = holdbackFor(balance, settings);
@@ -31,6 +34,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       studentId,
       studentName: studentRow?.name ?? "Student",
       studentAvatar: studentRow?.avatar ?? null,
+      // When rewards started for this student (null = never set: the first grade import asks).
+      rewardsStartDate: studentRow?.rewards_start_date ?? null,
       balance,
       holdback,
       // The setting behind it, so screens can say "20% of your balance" instead of just the amount.

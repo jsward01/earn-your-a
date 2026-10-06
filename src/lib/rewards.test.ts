@@ -235,3 +235,14 @@ describe("reward labels on cards use the reward type", () => {
     }
   });
 });
+
+describe("getRewardStatus — history work (before rewards started)", () => {
+  const base = { id: "1", title: "T", subject: "Math", dueDate: "2026-08-24", daysLeft: null, historyOnly: true } as const;
+  it("graded history work shows no reward, whatever the grade", () => {
+    expect(getRewardStatus({ ...base, type: "test", status: "graded", grade: 10 })).toMatchObject({ earned: 0, label: "History · no reward" });
+    expect(getRewardStatus({ ...base, type: "test", status: "graded", grade: 95 })).toMatchObject({ earned: 0, label: "History · no reward" });
+  });
+  it("missing history work isn't shown as a penalty", () => {
+    expect(getRewardStatus({ ...base, type: "quiz", status: "missing", grade: null })).toMatchObject({ earned: 0, label: "Missing · no reward", color: "text-gray-400" });
+  });
+});

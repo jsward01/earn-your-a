@@ -105,6 +105,11 @@ export function getRewardStatus(a: Assignment, rules: RewardRules = HOUSE_RULES)
   const makeup = (n: number) => (daysLeft !== null && daysLeft > 0 ? `${formatAmount(n, rules)} (Makeup Available)` : formatAmount(n, rules));
   const penaltyColor = daysLeft !== null && daysLeft > 0 ? "text-orange-500" : "text-red-500";
 
+  // Work from before the student's rewards started: shown for the record, never priced (matches the server).
+  if (a.historyOnly) {
+    if (status === "pending") return { earned: null, label: "Pending", color: "text-gray-400" };
+    return { earned: 0, label: status === "missing" ? "Missing · no reward" : "History · no reward", color: "text-gray-400" };
+  }
   if (status === "missing") return { earned: 0, label: "Missing", color: "text-red-500" };
   if (status === "pending") return { earned: null, label: "Pending", color: "text-gray-400" };
 

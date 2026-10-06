@@ -11,6 +11,7 @@ export interface AssignmentApiRow {
   grade: number | null;
   makeupDeadline: string | null;
   makeupUsed: boolean;
+  historyOnly?: boolean;
   recordedReward: number | null;
   payoutId: string | null;
   paidAt: string | null;
@@ -30,6 +31,7 @@ export function fromApiRow(row: AssignmentApiRow): Assignment {
     recordedReward: row.recordedReward ?? null,
     payoutId: row.payoutId ?? null,
     paidAt: row.paidAt ?? null,
+    historyOnly: row.historyOnly ?? false,
   };
 }
 

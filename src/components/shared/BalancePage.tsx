@@ -3,7 +3,7 @@ import type { Assignment } from "../../types";
 import { fetchAdjustments, fetchPayouts, type Adjustment, type PayoutRequestRow, type RewardSummary } from "../../lib/api";
 import { getRewardStatus } from "../../lib/rewards";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
-import { shortDate } from "../../lib/dates";
+import { formatDay, shortDate } from "../../lib/dates";
 import { getSubjectLight } from "../../lib/styles";
 import { AdjustmentModal } from "../parent/AdjustmentModal";
 
@@ -19,7 +19,7 @@ interface BalancePageProps {
   onChanged: () => void;
 }
 
-type Tab = "current" | "past";
+type Tab = "current" | "past" | "history";
 
 const byDueDesc = (a: Assignment, b: Assignment) => b.dueDate.localeCompare(a.dueDate);
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -41,7 +41,9 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
   }, []);
 
   // "Current" = finished work that hasn't been settled by a payout yet (graded or missing; pending work has no grade to show).
-  const current = assignments.filter(a => a.status !== "pending" && !a.payoutId).sort(byDueDesc);
+  const current = assignments.filter(a => a.status !== "pending" && !a.payoutId && !a.historyOnly).sort(byDueDesc);
+  // Work from before rewards started: on record (and in averages), never owed anything, so it gets its own list.
+  const history = assignments.filter(a => a.historyOnly && a.status !== "pending").sort(byDueDesc);
   const currentAdjustments = adjustments.filter(x => !x.payoutId);
   const currentTotal = round2(
     current.reduce((s, a) => s + (a.recordedReward ?? 0), 0) + currentAdjustments.reduce((s, x) => s + x.amount, 0),
@@ -130,10 +132,10 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
       </div>
 
       <div className="flex gap-2">
-        {(["current", "past"] as const).map(t => (
+        {(history.length > 0 ? (["current", "past", "history"] as const) : (["current", "past"] as const)).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-full text-sm font-medium ${tab === t ? "bg-indigo-600 text-white shadow" : "bg-white text-gray-500 border border-gray-200"}`}>
-            {t === "current" ? `Current Grades (${current.length})` : "Past Grades"}
+            {t === "current" ? `Current Grades (${current.length})` : t === "past" ? "Past Grades" : `Before Rewards (${history.length})`}
           </button>
         ))}
       </div>
@@ -177,6 +179,16 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === "history" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <p className="text-xs text-gray-500 px-4 py-3 bg-gray-50">
+            {summary?.rewardsStartDate ? `Due before rewards started (${formatDay(summary.rewardsStartDate)}). ` : ""}
+            These count toward averages but never earn or cost anything.
+          </p>
+          <div className="divide-y divide-gray-50">{history.map(a => row(a, !readOnly))}</div>
         </div>
       )}
 

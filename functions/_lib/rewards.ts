@@ -94,6 +94,8 @@ interface AssignmentForReward {
   status: "pending" | "graded" | "missing";
   grade: number | null;
   title: string;
+  /** Work from before the student's rewards started: recorded, never priced. */
+  historyOnly?: boolean;
 }
 
 /**
@@ -103,12 +105,13 @@ interface AssignmentForReward {
  *   failing assignment leaves no ledger entry; quizzes and tests default to losing what they would have paid.
  *   A penalty is reversible: once a retake passes, re-syncing replaces it with the reward.
  * - Missing or ungraded work never has a ledger entry.
+ * - History work (due before the student's rewards started) never has a ledger entry.
  */
 export function computeAssignmentReward(
   a: AssignmentForReward,
   settings: FullRewardSettings,
 ): { amount: number; reason: string } | null {
-  if (a.status !== "graded" || a.grade === null) return null;
+  if (a.historyOnly || a.status !== "graded" || a.grade === null) return null;
 
   const reward = a.type === "assignment" ? settings.assignmentReward : a.type === "quiz" ? settings.quizReward : settings.testReward;
   const penalty = a.type === "assignment" ? settings.assignmentPenalty : a.type === "quiz" ? settings.quizPenalty : settings.testPenalty;

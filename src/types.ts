@@ -16,6 +16,8 @@ export interface Assignment {
   /** Set once a payout has settled this item: archived under Past Grades, no longer editable. */
   payoutId?: string | null;
   paidAt?: string | null;
+  /** Due before the student's rewards started: recorded (grades, averages) but never earns or costs anything. */
+  historyOnly?: boolean;
 }
 
 export interface RewardStatus {

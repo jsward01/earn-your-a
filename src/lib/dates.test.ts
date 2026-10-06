@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daysUntilDate } from "./dates";
+import { daysUntilDate, formatDay } from "./dates";
 
 // Local-time constructors on purpose: the bug this guards against only shows up late in the local day.
 const at = (y: number, m: number, d: number, h: number) => new Date(y, m - 1, d, h, 0, 0);
@@ -25,5 +25,12 @@ describe("daysUntilDate", () => {
 
   it("handles month boundaries", () => {
     expect(daysUntilDate("2026-10-01", at(2026, 9, 30, 22))).toBe(1);
+  });
+});
+
+describe("formatDay", () => {
+  it("reads a calendar day as local, never shifting it", () => {
+    expect(formatDay("2026-10-05")).toMatch(/Oct 5, 2026/);
+    expect(formatDay("2026-01-01")).toMatch(/Jan 1, 2026/);
   });
 });

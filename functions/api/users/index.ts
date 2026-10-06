@@ -13,6 +13,7 @@ interface UserRow {
   email: string;
   is_admin: number;
   avatar: string | null;
+  rewards_start_date: string | null;
 }
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
@@ -21,12 +22,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if (user.role !== "parent") return json({ error: "Only a parent can view account access" }, 403);
 
   const { results } = await context.env.DB
-    .prepare("SELECT id, name, role, email, is_admin, avatar FROM users WHERE family_id = ? ORDER BY role DESC, created_at, id")
+    .prepare("SELECT id, name, role, email, is_admin, avatar, rewards_start_date FROM users WHERE family_id = ? ORDER BY role DESC, created_at, id")
     .bind(user.familyId)
     .all<UserRow>();
 
   return json(
-    results.map(r => ({ id: r.id, name: r.name, role: r.role, email: r.email, isAdmin: !!r.is_admin, avatar: r.avatar })),
+    results.map(r => ({ id: r.id, name: r.name, role: r.role, email: r.email, isAdmin: !!r.is_admin, avatar: r.avatar, rewardsStartDate: r.rewards_start_date })),
     200,
   );
 };

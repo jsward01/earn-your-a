@@ -20,6 +20,8 @@ export interface PlanRow {
   similar?: Assignment;
   /** For ignored rows: the saved ignore entry, so it can be undone. */
   ignoreId?: string;
+  /** New work due before the student's rewards started: it will be saved as history (recorded, $0). */
+  history?: boolean;
 }
 
 /** A saved "ignore this on future imports" entry, matched by normalized class + title. */
@@ -46,7 +48,7 @@ function describe(a: Assignment): string {
  * Compare imported items with the student's assignments (matched by class + title, ignoring case and punctuation).
  * Only items that would actually change something are pre-ticked.
  */
-export function buildPlan(items: ImportedItem[], assignments: Assignment[], ignores: IgnoreKey[] = []): PlanRow[] {
+export function buildPlan(items: ImportedItem[], assignments: Assignment[], ignores: IgnoreKey[] = [], rewardsStart: string | null = null): PlanRow[] {
   const ignored = new Map(ignores.map(i => [`${i.classKey}\u0000${i.titleKey}`, i.id]));
   const byKey = new Map<string, Assignment>();
   for (const a of assignments) {
@@ -62,6 +64,11 @@ export function buildPlan(items: ImportedItem[], assignments: Assignment[], igno
       const ignoreId = ignored.get(importKey(item.className, item.title));
       if (ignoreId) {
         return { item, kind: "ignored", existing, type: guessType(item.title), selected: false, note: "You chose to ignore this one", ignoreId };
+      }
+      // The server decides this from the due date when it saves; shown here so the parent knows what to expect.
+      // (No date = saved as due today, which is never before the start.)
+      if (rewardsStart && item.date && item.date < rewardsStart) {
+        return { item, kind: "new", existing, type: guessType(item.title), selected: true, history: true, note: "Before rewards started — saved as history (counts in averages, $0)" };
       }
       const note = item.status === "pending" ? "Not in the app yet — no score yet, so it's added as upcoming work" : "Not in the app yet";
       return { item, kind: "new", existing, type: guessType(item.title), selected: true, note };
@@ -124,7 +131,7 @@ export function notInList(rows: PlanRow[], assignments: Assignment[]): Assignmen
 /** What a row would add to the balance, priced at today's rates (the server does the real pricing on save). */
 export function estimateDelta(r: PlanRow, rules: RewardRules): number {
   const after =
-    r.item.status !== "graded" || r.item.grade === null
+    r.history || r.existing?.historyOnly || r.item.status !== "graded" || r.item.grade === null
       ? 0
       : r.item.grade >= rules.passingThreshold
         ? rewardAmountFor(r.type, rules)

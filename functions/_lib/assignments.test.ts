@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextMakeupState } from "./assignments";
+import { ARCHIVE_ON_PAYOUT_WHERE, nextMakeupState } from "./assignments";
 
 const NOW = new Date("2026-03-10T12:00:00Z"); // noon UTC: same calendar day in every timezone the app could run in
 const DAYS = 7;
@@ -93,4 +93,10 @@ describe("nextMakeupState — the 1-week makeup window", () => {
   // "After 1 week the penalty locks in permanently" is now enforced by payouts, not by this function: paying out
   // archives finished work (except items whose makeup window is still open) and archived work can't be edited.
   // See ARCHIVE_ON_PAYOUT_WHERE in assignments.ts and the payout-archive checks in CLAUDE.md.
+});
+
+describe("ARCHIVE_ON_PAYOUT_WHERE", () => {
+  it("never sweeps history work into a payout", () => {
+    expect(ARCHIVE_ON_PAYOUT_WHERE).toContain("history_only = 0");
+  });
 });

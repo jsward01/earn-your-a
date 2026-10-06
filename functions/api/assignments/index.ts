@@ -1,6 +1,6 @@
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
-import { ASSIGNMENT_SELECT, getAssignmentRow, nextMakeupState, toAssignmentJson, type AssignmentRow } from "../../_lib/assignments";
+import { ASSIGNMENT_SELECT, NO_MAKEUP, getAssignmentRow, isBeforeRewardsStart, nextMakeupState, toAssignmentJson, type AssignmentRow } from "../../_lib/assignments";
 import { checkStudentCreate, gradeError, isIsoDate } from "../../_lib/assignmentEdits";
 import { recordHistory } from "../../_lib/history";
 import { getFullRewardSettings, syncAssignmentRewardTransaction } from "../../_lib/rewards";
@@ -75,21 +75,23 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const { studentId } = resolved;
 
   const settings = await getFullRewardSettings(context.env.DB, user.familyId);
-  const makeup = nextMakeupState({ deadline: null }, status, grade, settings.passingThreshold, settings.makeupWindowDays, new Date());
+  // Decided once, here: work due before the student's rewards started is history (recorded, never priced).
+  const historyOnly = await isBeforeRewardsStart(context.env.DB, studentId, dueDate);
+  const makeup = historyOnly ? NO_MAKEUP : nextMakeupState({ deadline: null }, status, grade, settings.passingThreshold, settings.makeupWindowDays, new Date());
 
   const id = crypto.randomUUID();
   await context.env.DB
     .prepare(
-      `INSERT INTO assignments (id, family_id, student_id, title, subject, type, due_date, status, grade, makeup_deadline, makeup_used)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO assignments (id, family_id, student_id, title, subject, type, due_date, status, grade, makeup_deadline, makeup_used, history_only)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .bind(id, user.familyId, studentId, title, subject, type, dueDate, status, grade, makeup.deadline, makeup.used)
+    .bind(id, user.familyId, studentId, title, subject, type, dueDate, status, grade, makeup.deadline, makeup.used, historyOnly ? 1 : 0)
     .run();
 
   await syncAssignmentRewardTransaction(
     context.env.DB,
     { assignmentId: id, familyId: user.familyId, studentId },
-    { type: type as AssignmentRow["type"], status: status as AssignmentRow["status"], grade, title },
+    { type: type as AssignmentRow["type"], status: status as AssignmentRow["status"], grade, title, historyOnly },
     settings,
   );
 
@@ -100,7 +102,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     studentId,
     actorId: user.id,
     action: "create",
-    summary: `Added "${title}" (${type}, due ${dueDate})${status === "graded" ? `, graded ${grade}%` : status === "missing" ? ", marked missing" : ""}`,
+    summary: `Added "${title}" (${type}, due ${dueDate})${status === "graded" ? `, graded ${grade}%` : status === "missing" ? ", marked missing" : ""}${historyOnly ? " — before rewards started, no reward" : ""}`,
     ledgerBefore: null,
     ledgerAfter: row.recorded_reward ?? null,
   });

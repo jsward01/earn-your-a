@@ -151,6 +151,8 @@ export interface RewardSummary {
   rewardType: string;
   payoutPending: boolean;
   pendingPayoutId: string | null;
+  /** When rewards started for this student; null = never set (the first grade import asks). */
+  rewardsStartDate?: string | null;
 }
 
 export async function fetchRewardSummary(): Promise<RewardSummary> {
@@ -235,6 +237,8 @@ export interface FamilyAccount {
   email: string;
   isAdmin: boolean;
   avatar: string | null;
+  /** Students only: when rewards started (null = not set yet). */
+  rewardsStartDate?: string | null;
 }
 
 export async function fetchFamilyAccounts(): Promise<FamilyAccount[]> {
@@ -358,4 +362,14 @@ export async function extractGrades(input: { text?: string; images?: { mediaType
     body: JSON.stringify({ ...input, today: new Date().toLocaleDateString("en-CA") }),
   });
   return ((await parseJsonOrThrow(res)) as { items: ExtractedItem[] }).items;
+}
+
+/** Parent-only: set when rewards start for a student (YYYY-MM-DD, today or earlier). */
+export async function setRewardsStart(studentId: string, date: string): Promise<string> {
+  const res = await fetch(`/api/users/${studentId}/rewards-start`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ date }),
+  });
+  return ((await parseJsonOrThrow(res)) as { rewardsStartDate: string }).rewardsStartDate;
 }

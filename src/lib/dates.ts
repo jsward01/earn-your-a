@@ -22,3 +22,9 @@ export function daysUntilDate(dateStr: string, now: Date = new Date()): number {
   const target = new Date(`${dateStr}T00:00:00`);
   return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
+
+/** A calendar day ("YYYY-MM-DD") as "Oct 5, 2026", read as a local date (never shifted by time zone). */
+export function formatDay(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}

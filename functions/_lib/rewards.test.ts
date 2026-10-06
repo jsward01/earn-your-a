@@ -173,3 +173,15 @@ describe("holdbackFor / availableFor — fixed amount or percentage of the balan
     }
   });
 });
+
+describe("computeAssignmentReward — history work (before the student's rewards started)", () => {
+  it.each([
+    ["assignment", 100], ["assignment", 10], ["quiz", 95], ["quiz", 20], ["test", 90], ["test", 0],
+  ] as const)("%s @ %s%% earns and costs nothing", (type, grade) => {
+    expect(computeAssignmentReward({ ...graded(type, grade), historyOnly: true }, HOUSE)).toBeNull();
+  });
+
+  it("the same work without the mark is priced normally", () => {
+    expect(computeAssignmentReward({ ...graded("test", 0), historyOnly: false }, HOUSE)).toEqual({ amount: -20, reason: "T" });
+  });
+});

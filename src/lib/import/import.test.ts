@@ -494,3 +494,41 @@ describe("Other school system (AI-read) → import items", () => {
     expect(GRADE_SOURCES.map(s => [s.id, s.kind])).toEqual([["infinite-campus", "local"], ["other", "ai"]]);
   });
 });
+
+describe("rewards start date (history work)", () => {
+  const LIST = [
+    "Monday 08/24/2026", "Assignment", "Old HW", "Geometry -S1", "Score", "9/10",
+    "Assignment", "Old Test", "Geometry -S1", "Score", "10/20",
+    "Monday 10/05/2026", "Assignment", "New HW", "Geometry -S1", "Score", "9/10",
+    "Friday 10/09/2026", "Assignment", "Upcoming Quiz", "Geometry -S1",
+  ].join("\n");
+  const RULES = { ...DEFAULT_REWARD_SETTINGS };
+
+  it("new work due before the start date is marked history, ticked, and estimated at $0", () => {
+    const rows = buildPlan(parseInfiniteCampus(LIST, ["Geometry"]).items, [], [], "2026-10-01");
+    expect(rows.map(r => [r.item.title, r.kind, !!r.history, r.selected, estimateDelta(r, RULES)])).toEqual([
+      ["Old HW", "new", true, true, 0],
+      ["Old Test", "new", true, true, 0], // a failing test would normally cost $20
+      ["New HW", "new", false, true, 3],
+      ["Upcoming Quiz", "new", false, true, 0],
+    ]);
+    expect(rows[0].note).toMatch(/history/);
+  });
+
+  it("no start date: everything is priced as before", () => {
+    const rows = buildPlan(parseInfiniteCampus(LIST, ["Geometry"]).items, [], [], null);
+    expect(rows.map(r => estimateDelta(r, RULES))).toEqual([3, -20, 3, 0]);
+  });
+
+  it("a re-score of existing history work stays $0", () => {
+    const existing = a({ id: "h", title: "Old Test", subject: "Geometry", status: "graded", grade: 50, historyOnly: true, recordedReward: null });
+    const [row] = buildPlan(parseInfiniteCampus(LIST, ["Geometry"]).items.filter(i => i.title === "Old Test").map(i => ({ ...i, grade: 95 })), [existing], [], "2026-10-01");
+    expect(row.kind).toBe("update");
+    expect(estimateDelta(row, RULES)).toBe(0);
+  });
+
+  it("items with no date (notifications) are never treated as history", () => {
+    const rows = buildPlan(parseInfiniteCampus("Susana received a score of 1 out of 1 on HW in Geometry", ["Geometry"]).items, [], [], "2026-10-01");
+    expect(rows[0].history).toBeFalsy();
+  });
+});

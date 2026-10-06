@@ -71,11 +71,13 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
   }
 
   // Pending work splits in two: past due = waiting on the parent's grade, everything else is still coming up.
-  const { needsGrade, comingUp: upcoming } = splitPending(assignments);
+  // Work from before rewards started is on record only, so it never needs attention here (it still counts in the average).
+  const current = assignments.filter(a => !a.historyOnly);
+  const { needsGrade, comingUp: upcoming } = splitPending(current);
 
   // Work already settled by a payout is archived (Past Grades), so it drops off these to-do style lists.
-  const missing = assignments.filter(a => a.status === "missing" && !a.payoutId);
-  const lowGrade = assignments.filter(a => a.status === "graded" && a.grade !== null && a.grade < rules.passingThreshold && !a.payoutId);
+  const missing = current.filter(a => a.status === "missing" && !a.payoutId);
+  const lowGrade = current.filter(a => a.status === "graded" && a.grade !== null && a.grade < rules.passingThreshold && !a.payoutId);
 
   const show = (f: Exclude<OverviewFilter, "all">) => filter === "all" || filter === f;
 
@@ -313,6 +315,8 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
         <ImportModal
           assignments={assignments}
           studentName={summary?.studentName ?? "your student"}
+          studentId={summary?.studentId ?? null}
+          rewardsStartDate={summary?.rewardsStartDate ?? null}
           onClose={() => setShowImport(false)}
           onImported={onChanged}
         />

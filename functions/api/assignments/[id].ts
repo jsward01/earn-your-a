@@ -1,6 +1,6 @@
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
-import { ARCHIVED_MESSAGE, getAssignmentRow, nextMakeupState, toAssignmentJson, type AssignmentRow } from "../../_lib/assignments";
+import { ARCHIVED_MESSAGE, NO_MAKEUP, getAssignmentRow, nextMakeupState, toAssignmentJson, type AssignmentRow } from "../../_lib/assignments";
 import { computeAssignmentReward, getBalance, getFullRewardSettings, syncAssignmentRewardTransaction } from "../../_lib/rewards";
 import { affectsLedger, checkStudentDelete, checkStudentEdit, diffFields, fieldsFromRow, gradeError, isIsoDate, summarizeChanges, type Fields } from "../../_lib/assignmentEdits";
 import { getRecordedReward, recordHistory } from "../../_lib/history";
@@ -80,7 +80,8 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
 
   const settings = await getFullRewardSettings(db, user.familyId);
   const ledgerBefore = await getRecordedReward(db, id);
-  const ledgerAfter = relevant ? (computeAssignmentReward(after, settings)?.amount ?? null) : ledgerBefore;
+  const historyOnly = existing.history_only === 1;
+  const ledgerAfter = relevant ? (computeAssignmentReward({ ...after, historyOnly }, settings)?.amount ?? null) : ledgerBefore;
   const delta = (ledgerAfter ?? 0) - (ledgerBefore ?? 0);
   const balanceBefore = await getBalance(db, existing.student_id);
   const impact = {
@@ -99,7 +100,9 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
 
   // Makeup windows only move when the outcome (status/grade) moves; a rename or new due date leaves them alone.
   const outcomeChanged = !!(changes.status || changes.grade);
-  const makeup = outcomeChanged
+  const makeup = historyOnly
+    ? NO_MAKEUP
+    : outcomeChanged
     ? nextMakeupState({ deadline: existing.makeup_deadline }, after.status, after.grade, settings.passingThreshold, settings.makeupWindowDays, new Date())
     : { deadline: existing.makeup_deadline, used: existing.makeup_used };
 
@@ -115,7 +118,7 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
     await syncAssignmentRewardTransaction(
       db,
       { assignmentId: id, familyId: user.familyId, studentId: existing.student_id },
-      { type: after.type as AssignmentRow["type"], status: after.status as AssignmentRow["status"], grade: after.grade, title: after.title },
+      { type: after.type as AssignmentRow["type"], status: after.status as AssignmentRow["status"], grade: after.grade, title: after.title, historyOnly },
       settings,
     );
   } else if (changes.title) {

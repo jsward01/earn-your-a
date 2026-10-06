@@ -1,9 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import type { Assignment, AssignmentType } from "../../types";
 import {
-  createAssignment, extractGrades, fetchImportIgnores, fetchRewardSummary, ignoreImportItem, readScreenshots, unignoreImportItem, updateAssignment,
+  createAssignment, extractGrades, fetchImportIgnores, setRewardsStart, fetchRewardSummary, ignoreImportItem, readScreenshots, unignoreImportItem, updateAssignment,
 } from "../../lib/api";
 import { fileToScreenshotUpload } from "../../lib/screenshotImage";
+import { formatDay } from "../../lib/dates";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import { GRADE_SOURCES } from "../../lib/import/sources";
 import { buildPlan, estimateDelta, knownClasses, notInList, type IgnoreKey, type PlanKind, type PlanRow } from "../../lib/import/match";
@@ -14,12 +15,15 @@ import { fromExtracted } from "../../lib/import/other";
 interface ImportModalProps {
   assignments: Assignment[];
   studentName: string;
+  studentId: string | null;
+  /** When rewards started for this student; null = never set, so the first import asks. */
+  rewardsStartDate: string | null;
   onClose: () => void;
   /** Called once after anything was saved, so the app reloads assignments and the balance. */
   onImported: () => void;
 }
 
-type Step = "paste" | "review" | "done";
+type Step = "start" | "paste" | "review" | "done";
 
 interface Outcome {
   saved: number;
@@ -39,13 +43,19 @@ const COLLAPSIBLE: PlanKind[] = ["unchanged", "ignored"];
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
 
 /** Parent-only: paste a school system's notification list, review what it would change, then save the ticked rows. */
-export function ImportModal({ assignments, studentName, onClose, onImported }: ImportModalProps) {
+export function ImportModal({ assignments, studentName, studentId, rewardsStartDate, onClose, onImported }: ImportModalProps) {
   const fmt = useFormatAmount();
   const rules = useRewardSettings();
   const [sourceId, setSourceId] = useState(GRADE_SOURCES[0].id);
   const source = GRADE_SOURCES.find(s => s.id === sourceId) ?? GRADE_SOURCES[0];
   const [text, setText] = useState("");
-  const [step, setStep] = useState<Step>("paste");
+  // Asked once per student, before their first import: when do rewards start?
+  const [startDate, setStartDate] = useState<string | null>(rewardsStartDate);
+  const [step, setStep] = useState<Step>(rewardsStartDate || !studentId ? "paste" : "start");
+  const [startChoice, setStartChoice] = useState<"today" | "earlier">("today");
+  const [earlierDate, setEarlierDate] = useState("");
+  const [savingStart, setSavingStart] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
   const [rows, setRows] = useState<PlanRow[]>([]);
   const [skipped, setSkipped] = useState<SkippedLine[]>([]);
   const [complete, setComplete] = useState(false);
@@ -75,7 +85,7 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
     const saved = await fetchImportIgnores().catch(err => { console.error("Failed to load ignored imports", err); return []; });
     setItems(result.items);
     setIgnores(saved);
-    setRows(buildPlan(result.items, appAssignments, saved));
+    setRows(buildPlan(result.items, appAssignments, saved, startDate));
     setSkipped(result.skipped);
     setComplete(result.complete);
     setRowError(null);
@@ -86,11 +96,27 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
   function rebuild(nextAssignments: Assignment[], nextIgnores: IgnoreKey[]) {
     setRows(prev => {
       const before = new Map(prev.map(r => [importKey(r.item.className, r.item.title), r]));
-      return buildPlan(items, nextAssignments, nextIgnores).map(r => {
+      return buildPlan(items, nextAssignments, nextIgnores, startDate).map(r => {
         const old = before.get(importKey(r.item.className, r.item.title));
         return old && old.kind === r.kind ? { ...r, selected: old.selected, type: old.type } : r;
       });
     });
+  }
+
+  async function handleStartDate() {
+    const date = startChoice === "today" ? today() : earlierDate;
+    if (!studentId || !date) return;
+    setSavingStart(true);
+    setStartError(null);
+    try {
+      setStartDate(await setRewardsStart(studentId, date));
+      onImported(); // refresh the app's copy of the summary, so the question isn't asked again
+      setStep("paste");
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : "Couldn't save the date");
+    } finally {
+      setSavingStart(false);
+    }
   }
 
   async function rowAction(i: number, action: () => Promise<void>) {
@@ -282,6 +308,41 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
           <button onClick={onClose} disabled={saving} className="text-gray-400 text-xl disabled:opacity-30" aria-label="Close">✕</button>
         </div>
 
+        {step === "start" && (
+          <>
+            <div>
+              <p className="text-base font-semibold text-gray-800">When should rewards start for {studentName}?</p>
+              <p className="text-sm text-gray-500 mt-1">
+                Older work still comes in so you can see grades and averages for the whole year — it just doesn't earn or cost anything.
+                You only answer this once; you can change it later in Settings.
+              </p>
+            </div>
+            <div className="space-y-2" role="radiogroup" aria-label="Rewards start">
+              {([
+                ["today", `Today (${formatDay(today())})`, "Only work due from today on earns rewards"],
+                ["earlier", "An earlier date", "For example, the first day of school or of this semester"],
+              ] as const).map(([value, title, hint]) => (
+                <button key={value} role="radio" aria-checked={startChoice === value} onClick={() => setStartChoice(value)}
+                  className={`w-full text-left rounded-xl border px-4 py-3 ${startChoice === value ? "border-indigo-500 bg-indigo-50" : "border-gray-200 bg-white"}`}>
+                  <p className="text-sm font-semibold text-gray-800">{title}</p>
+                  <p className="text-xs text-gray-500">{hint}</p>
+                </button>
+              ))}
+            </div>
+            {startChoice === "earlier" && (
+              <div>
+                <label htmlFor="rewards-start" className={label}>Rewards start on</label>
+                <input id="rewards-start" type="date" max={today()} className={input} value={earlierDate} onChange={e => setEarlierDate(e.target.value)} />
+              </div>
+            )}
+            {startError && <p className="text-sm text-red-500">{startError}</p>}
+            <button onClick={handleStartDate} disabled={savingStart || (startChoice === "earlier" && !earlierDate)}
+              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">
+              {savingStart ? "Saving…" : "Continue"}
+            </button>
+          </>
+        )}
+
         {step === "paste" && (
           <>
             {GRADE_SOURCES.length > 1 && (
@@ -293,6 +354,11 @@ export function ImportModal({ assignments, studentName, onClose, onImported }: I
               </div>
             )}
             <p className="text-sm text-gray-500">{source.instructions}</p>
+            {startDate && (
+              <p className="text-xs text-gray-400">
+                Rewards for {studentName} started {formatDay(startDate)}; anything due earlier comes in as history ($0).
+              </p>
+            )}
 
             <div>
               <label htmlFor="import-text" className={label}>Pasted text</label>

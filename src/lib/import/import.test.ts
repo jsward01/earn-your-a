@@ -402,6 +402,18 @@ describe("near-duplicates, not-in-list, estimate", () => {
     );
     expect(rows.map(r => estimateDelta(r, RULES))).toEqual([20, 3, -10, 0]);
   });
+
+  it("prices missing work at the failing-grade penalty when the family turned that on", () => {
+    const rows = buildPlan(
+      list([
+        "Assignment", "Quiz 5", "Geometry -S1", "Missing",             // missing quiz → −10
+        "Assignment", "HW 6", "Geometry -S1", "Missing",               // missing assignment, $0 penalty → 0
+      ]).items,
+      [],
+    );
+    expect(rows.map(r => estimateDelta(r, { ...RULES, penalizeMissing: true }))).toEqual([-10, 0]);
+    expect(rows.map(r => estimateDelta(r, RULES))).toEqual([0, 0]);
+  });
 });
 
 describe("ignored items", () => {

@@ -16,6 +16,7 @@ interface RewardSettingsRow {
   assignment_penalty: number;
   quiz_penalty: number;
   test_penalty: number;
+  missing_penalty: number;
   passing_threshold: number;
   makeup_window_days: number;
   holdback: number;
@@ -35,7 +36,10 @@ interface RewardSettingsBody {
   assignmentPenalty: number;
   quizPenalty: number;
   testPenalty: number;
+  /** Missing work costs the same as a failing grade of its type. */
+  penalizeMissing: boolean;
   passingThreshold: number;
+  /** Days to retake missing or failing work; 0 = retakes are off. */
   makeupWindow: number;
   /** A fixed amount, or a percentage of the balance when holdbackType is 'percent'. */
   holdback: number;
@@ -55,6 +59,7 @@ const DEFAULT_SETTINGS: RewardSettingsBody = {
   assignmentPenalty: 0,
   quizPenalty: 10,
   testPenalty: 20,
+  penalizeMissing: false,
   passingThreshold: 70,
   makeupWindow: 7,
   holdback: 20,
@@ -74,6 +79,7 @@ function toBody(row: RewardSettingsRow): RewardSettingsBody {
     assignmentPenalty: row.assignment_penalty,
     quizPenalty: row.quiz_penalty,
     testPenalty: row.test_penalty,
+    penalizeMissing: !!row.missing_penalty,
     passingThreshold: row.passing_threshold,
     makeupWindow: row.makeup_window_days,
     holdback: row.holdback,
@@ -92,7 +98,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   const row = await context.env.DB
     .prepare(
-      `SELECT assignment_reward, quiz_reward, test_reward, assignment_penalty, quiz_penalty, test_penalty, passing_threshold, makeup_window_days, holdback, holdback_type, reward_type, excellence_bonus, streak_bonus, payout_schedule, custom_unit
+      `SELECT assignment_reward, quiz_reward, test_reward, assignment_penalty, quiz_penalty, test_penalty, missing_penalty, passing_threshold, makeup_window_days, holdback, holdback_type, reward_type, excellence_bonus, streak_bonus, payout_schedule, custom_unit
        FROM reward_settings WHERE family_id = ?`,
     )
     .bind(user.familyId)
@@ -132,13 +138,14 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
   // The quiz reward and the three penalties are newer than the original settings screen. A stale page that omits
   // them must not silently reset them, so fall back to what the family already has (or the defaults).
   const current = await context.env.DB
-    .prepare("SELECT quiz_reward, assignment_penalty, quiz_penalty, test_penalty FROM reward_settings WHERE family_id = ?")
+    .prepare("SELECT quiz_reward, assignment_penalty, quiz_penalty, test_penalty, missing_penalty FROM reward_settings WHERE family_id = ?")
     .bind(user.familyId)
-    .first<{ quiz_reward: number; assignment_penalty: number; quiz_penalty: number; test_penalty: number }>();
+    .first<{ quiz_reward: number; assignment_penalty: number; quiz_penalty: number; test_penalty: number; missing_penalty: number }>();
   const quizReward = body.quizReward ?? current?.quiz_reward ?? DEFAULT_SETTINGS.quizReward;
   const assignmentPenalty = body.assignmentPenalty ?? current?.assignment_penalty ?? DEFAULT_SETTINGS.assignmentPenalty;
   const quizPenalty = body.quizPenalty ?? current?.quiz_penalty ?? DEFAULT_SETTINGS.quizPenalty;
   const testPenalty = body.testPenalty ?? current?.test_penalty ?? DEFAULT_SETTINGS.testPenalty;
+  const penalizeMissing = body.penalizeMissing ?? (current ? !!current.missing_penalty : DEFAULT_SETTINGS.penalizeMissing);
 
   if (
     !isFiniteNonNegative(assignmentReward) ||
@@ -149,7 +156,8 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
     !isFiniteNonNegative(testPenalty) ||
     !isFiniteNonNegative(holdback) ||
     typeof passingThreshold !== "number" || !Number.isFinite(passingThreshold) || passingThreshold < 0 || passingThreshold > 100 ||
-    typeof makeupWindow !== "number" || !Number.isInteger(makeupWindow) || makeupWindow < 1 ||
+    typeof makeupWindow !== "number" || !Number.isInteger(makeupWindow) || makeupWindow < 0 ||
+    typeof penalizeMissing !== "boolean" ||
     !rewardType || !REWARD_TYPES.includes(rewardType) ||
     !payoutSchedule || !PAYOUT_SCHEDULES.includes(payoutSchedule) ||
     typeof excellenceBonus !== "boolean" ||
@@ -173,8 +181,8 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
 
   await context.env.DB
     .prepare(
-      `INSERT INTO reward_settings (family_id, assignment_reward, quiz_reward, test_reward, assignment_penalty, quiz_penalty, test_penalty, passing_threshold, makeup_window_days, holdback, holdback_type, reward_type, excellence_bonus, streak_bonus, payout_schedule, custom_unit, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+      `INSERT INTO reward_settings (family_id, assignment_reward, quiz_reward, test_reward, assignment_penalty, quiz_penalty, test_penalty, missing_penalty, passing_threshold, makeup_window_days, holdback, holdback_type, reward_type, excellence_bonus, streak_bonus, payout_schedule, custom_unit, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT(family_id) DO UPDATE SET
          assignment_reward = excluded.assignment_reward,
          quiz_reward = excluded.quiz_reward,
@@ -182,6 +190,7 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
          assignment_penalty = excluded.assignment_penalty,
          quiz_penalty = excluded.quiz_penalty,
          test_penalty = excluded.test_penalty,
+         missing_penalty = excluded.missing_penalty,
          passing_threshold = excluded.passing_threshold,
          makeup_window_days = excluded.makeup_window_days,
          holdback = excluded.holdback,
@@ -194,13 +203,13 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
          updated_at = datetime('now')`,
     )
     .bind(
-      user.familyId, assignmentReward, quizReward, testReward, assignmentPenalty, quizPenalty, testPenalty, passingThreshold, makeupWindow, holdback, holdbackType,
+      user.familyId, assignmentReward, quizReward, testReward, assignmentPenalty, quizPenalty, testPenalty, penalizeMissing ? 1 : 0, passingThreshold, makeupWindow, holdback, holdbackType,
       rewardType, excellenceBonus ? 1 : 0, streakBonus ? 1 : 0, payoutSchedule, customUnit,
     )
     .run();
 
   return json(
-    { assignmentReward, quizReward, testReward, assignmentPenalty, quizPenalty, testPenalty, passingThreshold, makeupWindow, holdback, holdbackType, rewardType, excellenceBonus, streakBonus, payoutSchedule, customUnit },
+    { assignmentReward, quizReward, testReward, assignmentPenalty, quizPenalty, testPenalty, penalizeMissing, passingThreshold, makeupWindow, holdback, holdbackType, rewardType, excellenceBonus, streakBonus, payoutSchedule, customUnit },
     200,
   );
 };

@@ -85,7 +85,7 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
         </div>
         <div className="text-right shrink-0">
           <p className={`text-sm font-bold ${r.color}`}>{r.label}</p>
-          <p className="text-xs text-gray-400">{a.status === "missing" ? fmt(0) : a.grade !== null ? `${a.grade}%` : "—"}</p>
+          <p className="text-xs text-gray-400">{a.status === "missing" ? "Missing" : a.grade !== null ? `${a.grade}%` : "—"}</p>
         </div>
       </div>
     );

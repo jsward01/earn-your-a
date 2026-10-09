@@ -9,6 +9,7 @@ const HOUSE: FullRewardSettings = {
   assignmentPenalty: 0,
   quizPenalty: 10,
   testPenalty: 20,
+  penalizeMissing: false,
   passingThreshold: 70,
   makeupWindowDays: 7,
   holdback: 20,
@@ -94,6 +95,25 @@ describe("computeAssignmentReward — house rules", () => {
 
     it("graded with no grade entered -> null", () => {
       expect(computeAssignmentReward(graded("test", null), HOUSE)).toBeNull();
+    });
+
+    describe("when the family turns on the missing-work penalty", () => {
+      const strict = { ...HOUSE, penalizeMissing: true };
+      it.each([["quiz", -10], ["test", -20]] as const)("missing %s costs the failing-grade penalty (%d)", (type, amount) => {
+        expect(computeAssignmentReward({ type, status: "missing", grade: null, title: "T" }, strict)).toEqual({ amount, reason: "T" });
+      });
+      it("a missing assignment with a $0 penalty still has no entry", () => {
+        expect(computeAssignmentReward({ type: "assignment", status: "missing", grade: null, title: "T" }, strict)).toBeNull();
+      });
+      it("uses the family's own penalty amounts", () => {
+        expect(computeAssignmentReward({ type: "assignment", status: "missing", grade: null, title: "T" }, { ...strict, assignmentPenalty: 2 })?.amount).toBe(-2);
+      });
+      it("history work is never charged", () => {
+        expect(computeAssignmentReward({ type: "test", status: "missing", grade: null, title: "T", historyOnly: true }, strict)).toBeNull();
+      });
+      it("pending work is never charged", () => {
+        expect(computeAssignmentReward({ type: "test", status: "pending", grade: null, title: "T" }, strict)).toBeNull();
+      });
     });
 
     it("a stale grade on a missing/pending item is ignored", () => {

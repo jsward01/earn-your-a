@@ -6,7 +6,10 @@ export interface FullRewardSettings {
   assignmentPenalty: number;
   quizPenalty: number;
   testPenalty: number;
+  /** Missing work costs the same as a failing grade of its type (off = missing just earns nothing). */
+  penalizeMissing: boolean;
   passingThreshold: number;
+  /** 0 = retakes are off: failing or missing work never gets a retake window. */
   makeupWindowDays: number;
   /** A fixed amount, or a percentage of the balance, depending on holdbackType. */
   holdback: number;
@@ -24,6 +27,7 @@ interface RewardSettingsRow {
   assignment_penalty: number;
   quiz_penalty: number;
   test_penalty: number;
+  missing_penalty: number;
   passing_threshold: number;
   makeup_window_days: number;
   holdback: number;
@@ -39,6 +43,7 @@ const DEFAULT_SETTINGS: FullRewardSettings = {
   assignmentPenalty: 0,
   quizPenalty: 10,
   testPenalty: 20,
+  penalizeMissing: false,
   passingThreshold: 70,
   makeupWindowDays: 7,
   holdback: 20,
@@ -50,7 +55,7 @@ const DEFAULT_SETTINGS: FullRewardSettings = {
 export async function getFullRewardSettings(db: D1Database, familyId: string): Promise<FullRewardSettings> {
   const row = await db
     .prepare(
-      `SELECT assignment_reward, quiz_reward, test_reward, assignment_penalty, quiz_penalty, test_penalty, passing_threshold, makeup_window_days, holdback, holdback_type, reward_type, payout_schedule
+      `SELECT assignment_reward, quiz_reward, test_reward, assignment_penalty, quiz_penalty, test_penalty, missing_penalty, passing_threshold, makeup_window_days, holdback, holdback_type, reward_type, payout_schedule
        FROM reward_settings WHERE family_id = ?`,
     )
     .bind(familyId)
@@ -63,6 +68,7 @@ export async function getFullRewardSettings(db: D1Database, familyId: string): P
     assignmentPenalty: row.assignment_penalty,
     quizPenalty: row.quiz_penalty,
     testPenalty: row.test_penalty,
+    penalizeMissing: !!row.missing_penalty,
     passingThreshold: row.passing_threshold,
     makeupWindowDays: row.makeup_window_days,
     holdback: row.holdback,
@@ -104,17 +110,22 @@ interface AssignmentForReward {
  * - Below the pass mark: -the penalty for that kind of work. Regular assignments default to a $0 penalty, so a
  *   failing assignment leaves no ledger entry; quizzes and tests default to losing what they would have paid.
  *   A penalty is reversible: once a retake passes, re-syncing replaces it with the reward.
- * - Missing or ungraded work never has a ledger entry.
+ * - Missing work has no ledger entry, unless the family turned on penalizeMissing: then it costs the same as a failing
+ *   grade of its type (nothing when that penalty is 0). Turning it in and passing replaces that with the reward.
+ * - Ungraded work never has a ledger entry.
  * - History work (due before the student's rewards started) never has a ledger entry.
  */
 export function computeAssignmentReward(
   a: AssignmentForReward,
   settings: FullRewardSettings,
 ): { amount: number; reason: string } | null {
-  if (a.historyOnly || a.status !== "graded" || a.grade === null) return null;
+  if (a.historyOnly) return null;
 
   const reward = a.type === "assignment" ? settings.assignmentReward : a.type === "quiz" ? settings.quizReward : settings.testReward;
   const penalty = a.type === "assignment" ? settings.assignmentPenalty : a.type === "quiz" ? settings.quizPenalty : settings.testPenalty;
+
+  if (a.status === "missing") return settings.penalizeMissing && penalty > 0 ? { amount: -penalty, reason: a.title } : null;
+  if (a.status !== "graded" || a.grade === null) return null;
 
   if (a.grade >= settings.passingThreshold) return { amount: reward, reason: a.title };
   return penalty > 0 ? { amount: -penalty, reason: a.title } : null;

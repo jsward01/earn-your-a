@@ -28,7 +28,7 @@ const RULE_SETS: [string, Rules][] = [
 ];
 
 const BASE: FullRewardSettings = {
-  assignmentReward: 3, quizReward: 10, testReward: 20, assignmentPenalty: 0, quizPenalty: 10, testPenalty: 20, passingThreshold: 70, makeupWindowDays: 7,
+  assignmentReward: 3, quizReward: 10, testReward: 20, assignmentPenalty: 0, quizPenalty: 10, testPenalty: 20, penalizeMissing: false, passingThreshold: 70, makeupWindowDays: 7,
   holdback: 20, holdbackType: "amount", rewardType: "money", payoutSchedule: "request",
 };
 
@@ -39,21 +39,21 @@ describe.each(RULE_SETS)("browser rules match the server's ledger rules — %s",
   const settings: FullRewardSettings = { ...BASE, ...rules };
 
   it.each(types.flatMap(type => grades.map(grade => [type, grade] as const)))("%s @ %s%%", (type, grade) => {
-    const shown = getRewardStatus(make({ type, grade }), { ...rules, rewardType: "money", customUnit: "" }).earned;
+    const shown = getRewardStatus(make({ type, grade }), { ...rules, penalizeMissing: false, rewardType: "money", customUnit: "" }).earned;
     const ledger = computeAssignmentReward({ type, status: "graded", grade, title: "T" }, settings)?.amount ?? 0; // no entry == $0
     // `+ 0` normalizes -0 (a "-$0" penalty with a $0 test amount) so it compares equal to 0.
     expect((shown ?? 0) + 0).toBe(ledger + 0);
   });
 
   it.each(types.flatMap(type => [0, 69, 70, 100].map(grade => [type, grade] as const)))("history %s at %d percent pays nothing", (type, grade) => {
-    const shown = getRewardStatus(make({ type, grade, historyOnly: true }), { ...rules, rewardType: "money", customUnit: "" }).earned;
+    const shown = getRewardStatus(make({ type, grade, historyOnly: true }), { ...rules, penalizeMissing: false, rewardType: "money", customUnit: "" }).earned;
     const ledger = computeAssignmentReward({ type, status: "graded", grade, title: "T", historyOnly: true }, settings)?.amount ?? 0;
     expect((shown ?? 0) + 0).toBe(ledger + 0);
   });
 
-  it.each(types)("%s: missing agrees", type => {
-    expect(getRewardStatus(make({ type, status: "missing", grade: null }), { ...rules, rewardType: "money", customUnit: "" }).earned).toBe(
-      computeAssignmentReward({ type, status: "missing", grade: null, title: "T" }, settings)?.amount ?? 0,
-    );
+  it.each(types.flatMap(type => [false, true].map(penalizeMissing => [type, penalizeMissing] as const)))("%s: missing agrees (missing penalty %s)", (type, penalizeMissing) => {
+    const shown = getRewardStatus(make({ type, status: "missing", grade: null }), { ...rules, penalizeMissing, rewardType: "money", customUnit: "" }).earned;
+    const ledger = computeAssignmentReward({ type, status: "missing", grade: null, title: "T" }, { ...settings, penalizeMissing })?.amount ?? 0;
+    expect((shown ?? 0) + 0).toBe(ledger + 0);
   });
 });

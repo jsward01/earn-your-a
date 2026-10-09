@@ -8,6 +8,7 @@ export const DEFAULT_REWARD_SETTINGS: RewardSettings = {
   assignmentPenalty: 0,
   quizPenalty: 10,
   testPenalty: 20,
+  penalizeMissing: false,
   passingThreshold: 70,
   makeupWindow: 7,
   holdback: 20,
@@ -25,7 +26,7 @@ export type RewardFormat = Pick<RewardSettings, "rewardType" | "customUnit">;
 /** What an item pays and what counts as passing, plus how to write the amount. */
 export type RewardRules = Pick<
   RewardSettings,
-  "assignmentReward" | "quizReward" | "testReward" | "assignmentPenalty" | "quizPenalty" | "testPenalty" | "passingThreshold" | "rewardType" | "customUnit"
+  "assignmentReward" | "quizReward" | "testReward" | "assignmentPenalty" | "quizPenalty" | "testPenalty" | "penalizeMissing" | "passingThreshold" | "rewardType" | "customUnit"
 >;
 
 export const HOUSE_RULES: RewardRules = {
@@ -35,6 +36,7 @@ export const HOUSE_RULES: RewardRules = {
   assignmentPenalty: DEFAULT_REWARD_SETTINGS.assignmentPenalty,
   quizPenalty: DEFAULT_REWARD_SETTINGS.quizPenalty,
   testPenalty: DEFAULT_REWARD_SETTINGS.testPenalty,
+  penalizeMissing: DEFAULT_REWARD_SETTINGS.penalizeMissing,
   passingThreshold: DEFAULT_REWARD_SETTINGS.passingThreshold,
   rewardType: DEFAULT_REWARD_SETTINGS.rewardType,
   customUnit: DEFAULT_REWARD_SETTINGS.customUnit,
@@ -90,7 +92,8 @@ export function formatAmount(amount: number, fmt: RewardFormat, opts: FormatOpti
  * - At or above the pass mark: +the reward for that kind of work.
  * - Below it: -the penalty for that kind of work (reversible via the makeup window). Regular assignments default to a
  *   $0 penalty, i.e. they simply earn nothing.
- * - Missing work earns nothing with no negative penalty (penalties apply to graded-but-failing work only).
+ * - Missing work earns nothing and costs nothing, unless the family turned on penalizeMissing: then it costs the same as
+ *   a failing grade of its type.
  *
  * Graded items that carry `recordedReward` (everything from the API) use that instead of the rules below; the rules
  * still drive previews and anything not yet recorded.
@@ -110,7 +113,14 @@ export function getRewardStatus(a: Assignment, rules: RewardRules = HOUSE_RULES)
     if (status === "pending") return { earned: null, label: "Pending", color: "text-gray-400" };
     return { earned: 0, label: status === "missing" ? "Missing · no reward" : "History · no reward", color: "text-gray-400" };
   }
-  if (status === "missing") return { earned: 0, label: "Missing", color: "text-red-500" };
+  if (status === "missing") {
+    // Like graded cards, prefer what the ledger recorded (the setting may have changed since it was marked missing).
+    const amount = a.recordedReward !== undefined
+      ? a.recordedReward ?? 0
+      : rules.penalizeMissing && penaltyAmountFor(type, rules) > 0 ? -penaltyAmountFor(type, rules) : 0;
+    if (amount < 0) return { earned: amount, label: `Missing · ${makeup(amount)}`, color: "text-red-500" };
+    return { earned: 0, label: "Missing", color: "text-red-500" };
+  }
   if (status === "pending") return { earned: null, label: "Pending", color: "text-gray-400" };
 
   // Graded work shows what the ledger actually recorded, so a card can never disagree with the reward it earned —

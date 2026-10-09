@@ -107,7 +107,7 @@ describe("rewardAmountFor", () => {
   it("HOUSE_RULES are exactly the agreed rules: $3 assignment / $10 quiz / $20 test, penalties $0 / $10 / $20, 70% to pass", () => {
     expect(HOUSE_RULES).toEqual({
       assignmentReward: 3, quizReward: 10, testReward: 20,
-      assignmentPenalty: 0, quizPenalty: 10, testPenalty: 20,
+      assignmentPenalty: 0, quizPenalty: 10, testPenalty: 20, penalizeMissing: false,
       passingThreshold: 70, rewardType: "money", customUnit: "",
     });
     expect(DEFAULT_REWARD_SETTINGS).toMatchObject(HOUSE_RULES);
@@ -136,6 +136,16 @@ describe("graded cards show what the ledger recorded (not a recomputation)", () 
   it("pending and missing ignore any recorded value", () => {
     expect(getRewardStatus(make({ status: "pending", grade: null, recordedReward: 5 }), RULES).earned).toBeNull();
     expect(getRewardStatus(make({ status: "missing", grade: null, recordedReward: 5 }), RULES).earned).toBe(0);
+  });
+
+  it("missing work shows the missing-work penalty when the family turned it on", () => {
+    const strict = { ...RULES, penalizeMissing: true };
+    expect(getRewardStatus(make({ type: "quiz", status: "missing", grade: null }), strict)).toMatchObject({ earned: -10, label: "Missing · -$10.00" });
+    expect(getRewardStatus(make({ type: "quiz", status: "missing", grade: null, recordedReward: -10 }), RULES).earned).toBe(-10);
+    // The ledger wins: marked missing before the setting was turned on, so nothing was charged.
+    expect(getRewardStatus(make({ type: "quiz", status: "missing", grade: null, recordedReward: null }), strict).earned).toBe(0);
+    // A missing assignment's penalty is $0 by default, so it still just says "Missing".
+    expect(getRewardStatus(make({ status: "missing", grade: null }), strict)).toMatchObject({ earned: 0, label: "Missing" });
   });
 
   it("when recordedReward is absent the rules still apply (previews)", () => {

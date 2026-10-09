@@ -131,9 +131,13 @@ export function notInList(rows: PlanRow[], assignments: Assignment[]): Assignmen
 /** What a row would add to the balance, priced at today's rates (the server does the real pricing on save). */
 export function estimateDelta(r: PlanRow, rules: RewardRules): number {
   const after =
-    r.history || r.existing?.historyOnly || r.item.status !== "graded" || r.item.grade === null
+    r.history || r.existing?.historyOnly
       ? 0
-      : r.item.grade >= rules.passingThreshold
+      : r.item.status === "missing"
+        ? rules.penalizeMissing && penaltyAmountFor(r.type, rules) > 0 ? -penaltyAmountFor(r.type, rules) : 0
+      : r.item.status !== "graded" || r.item.grade === null
+        ? 0
+        : r.item.grade >= rules.passingThreshold
         ? rewardAmountFor(r.type, rules)
         : -penaltyAmountFor(r.type, rules);
   return after - (r.existing?.recordedReward ?? 0);

@@ -42,6 +42,10 @@ export function nextMakeupState(
   if (current.deadline) {
     return { deadline: current.deadline, used: 0 };
   }
+  // Retakes turned off (a 0-day window): no new window opens. One opened before the switch keeps running above.
+  if (makeupWindowDays <= 0) {
+    return { deadline: null, used: 0 };
+  }
   const d = new Date(now);
   d.setDate(d.getDate() + makeupWindowDays);
   return { deadline: d.toISOString().slice(0, 10), used: 0 };

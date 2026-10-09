@@ -110,7 +110,10 @@ export interface RewardSettings {
   assignmentPenalty: number;
   quizPenalty: number;
   testPenalty: number;
+  /** Missing work costs the same as a failing grade of its type (off = it just earns nothing). */
+  penalizeMissing: boolean;
   passingThreshold: number;
+  /** Days to retake missing or failing work; 0 = retakes are off. */
   makeupWindow: number;
   /** A fixed amount, or a percentage of the balance when holdbackType is "percent". */
   holdback: number;

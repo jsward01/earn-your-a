@@ -35,6 +35,17 @@ describe("nextMakeupState — the 1-week makeup window", () => {
     });
   });
 
+  describe("retakes turned off (0-day window)", () => {
+    it("failing or missing work opens no window", () => {
+      expect(nextMakeupState(open(null), "graded", 50, 70, 0, NOW)).toEqual({ deadline: null, used: 0 });
+      expect(nextMakeupState(open(null), "missing", null, 70, 0, NOW)).toEqual({ deadline: null, used: 0 });
+    });
+
+    it("a window opened before retakes were turned off keeps running", () => {
+      expect(nextMakeupState(open("2026-03-15"), "graded", 50, 70, 0, NOW)).toEqual({ deadline: "2026-03-15", used: 0 });
+    });
+  });
+
   describe("no window when nothing is wrong", () => {
     it("pending work", () => {
       expect(nextMakeupState(open(null), "pending", null, 70, DAYS, NOW)).toEqual({ deadline: null, used: 0 });

@@ -39,6 +39,19 @@ const TABS: { val: SettingsTab; icon: string; label: string }[] = [
 ];
 
 /** One labeled number box: "Quiz  $ [10] each". */
+/** An on/off switch row, like the bonus switches below. */
+function SwitchRow({ label, hint, on, onChange }: { label: string; hint: string; on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0"><p className="text-sm text-gray-700">{label}</p><p className="text-xs text-gray-400">{hint}</p></div>
+      <button role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}
+        className={`w-12 h-6 rounded-full transition-all relative shrink-0 ${on ? "bg-indigo-600" : "bg-gray-200"}`}>
+        <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow ${on ? "left-6" : "left-0.5"}`} />
+      </button>
+    </div>
+  );
+}
+
 function NumberRow({ label, hint, value, onChange, prefix, suffix, max, children }: {
   label: string; hint?: string; value: number; onChange: (n: number) => void; prefix?: string; suffix?: string; max?: number; children?: React.ReactNode;
 }) {
@@ -246,18 +259,26 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
           <p className="text-xs text-gray-400 font-medium">PASSING GRADE &amp; RETAKES</p>
           <NumberRow label="Passing grade" hint="At or above this earns the reward." value={settings.passingThreshold} onChange={n => update("passingThreshold", n)} suffix="%" max={100} />
-          <NumberRow label="Retake window" hint="Time to retake missing or failed work." value={settings.makeupWindow} onChange={n => update("makeupWindow", n)} suffix="days" />
+          <SwitchRow label="Allow retakes" hint="Missing or failed work can be turned in or retaken for the reward."
+            on={settings.makeupWindow > 0} onChange={on => update("makeupWindow", on ? DEFAULT_REWARD_SETTINGS.makeupWindow : 0)} />
+          {settings.makeupWindow > 0
+            ? <NumberRow label="Retake window" hint="Time to retake missing or failed work." value={settings.makeupWindow} onChange={n => update("makeupWindow", n)} suffix="days" />
+            : <p className="text-xs text-gray-400">Retakes are off: a grade is final once it's entered. Retake windows that are already open keep running.</p>}
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-4">
           <div>
             <p className="text-xs text-gray-400 font-medium">PENALTIES</p>
-            <p className="text-xs text-gray-400 mt-1">Taken away when work is graded <span className="font-semibold">below</span> the passing grade. Set 0 for no penalty. Missing work is never penalized, and a passing retake within the retake window reverses the penalty.</p>
+            <p className="text-xs text-gray-400 mt-1">Taken away when work is graded <span className="font-semibold">below</span> the passing grade. Set 0 for no penalty.{settings.makeupWindow > 0 ? " A passing retake within the retake window reverses the penalty." : ""}</p>
           </div>
           {PENALTY_FIELDS.map(f => {
             const { prefix, suffix } = rewardAffixes(settings, "lost");
             return <NumberRow key={f.key} label={f.label} value={settings[f.key]} onChange={n => update(f.key, n)} prefix={prefix} suffix={suffix} />;
           })}
+          <SwitchRow label="Penalize missing work"
+            hint={settings.penalizeMissing ? "Missing work costs the same as a failing grade of its type." : "Off: missing work earns nothing but costs nothing."}
+            on={settings.penalizeMissing} onChange={on => update("penalizeMissing", on)} />
+          {settings.penalizeMissing && <p className="text-xs text-gray-400">Applies to work marked missing from now on; anything already marked missing isn't charged after the fact.</p>}
         </div>
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">

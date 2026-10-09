@@ -20,7 +20,7 @@ import { WeeklySummary } from "./components/shared/WeeklySummary";
 import { NotificationCenter } from "./components/shared/NotificationCenter";
 
 const STUDENT_NAVS: NavItem[] = [
-  { id: "dashboard", icon: "📚", label: "Assignments" },
+  { id: "dashboard", icon: "🏠", label: "Home" },
   { id: "calendar", icon: "📅", label: "Calendar" },
   { id: "ai", icon: "🤖", label: "AI Planner" },
   { id: "rewards", icon: "💰", label: "Rewards" },

@@ -5,6 +5,7 @@ import { getRewardStatus } from "../../lib/rewards";
 import { useRewardSettings } from "../../lib/rewardSettingsContext";
 import { getSubjectColor, getStatusBadge, getDaysLeftColor } from "../../lib/styles";
 import { createAssignment, updateAssignment, deleteAssignment } from "../../lib/api";
+import { DueToday } from "./DueToday";
 
 interface StudentDashboardProps {
   assignments: Assignment[];
@@ -30,6 +31,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function StudentDashboard({ assignments, setAssignments, onChanged }: StudentDashboardProps) {
   const rules = useRewardSettings();
+  const [mode, setMode] = useState<"due" | "all">("due");
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [newA, setNewA] = useState<NewAssignmentForm>(EMPTY_FORM);
@@ -112,6 +114,17 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
 
   return (
     <div className="pb-4">
+      <div className="px-4 pt-4">
+        <div className="grid grid-cols-2 bg-gray-100 rounded-xl p-1">
+          {([["due", "What's due"], ["all", "All work"]] as const).map(([m, label]) => (
+            <button key={m} onClick={() => setMode(m)}
+              className={`py-2 rounded-lg text-sm font-semibold transition-all ${mode === m ? "bg-white text-indigo-600 shadow-sm ring-1 ring-gray-200" : "text-gray-500"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {mode === "due" ? <DueToday assignments={assignments} onOpen={openEdit} onAdd={() => setShowAddModal(true)} /> : <>
       <div className="grid grid-cols-3 gap-3 px-4 py-4">
         {[
           { label: "Pending", val: assignments.filter(a => a.status === "pending").length, color: "text-indigo-600" },
@@ -178,6 +191,7 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
         })}
         {filtered.length === 0 && <div className="text-center py-12 text-gray-400"><p className="text-4xl mb-3">📋</p><p>No assignments here</p></div>}
       </div>
+      </>}
       <div className="fixed bottom-20 right-4">
         <button onClick={() => setShowAddModal(true)} className="bg-indigo-600 text-white w-14 h-14 rounded-full shadow-xl text-2xl flex items-center justify-center">+</button>
       </div>

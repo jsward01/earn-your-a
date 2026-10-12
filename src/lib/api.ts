@@ -1,5 +1,5 @@
 import type { ExtractedItem } from "./import/types";
-import type { AuthUser, Assignment, AssignmentPlan, AssignmentPlanForm, RewardSettings, SavingsGoal } from "../types";
+import type { AuthUser, Assignment, AssignmentPlan, AssignmentPlanForm, EmailAlertSettings, RewardSettings, SavingsGoal } from "../types";
 import { fromApiRow, type AssignmentApiRow } from "./assignments";
 
 async function parseJsonOrThrow(res: Response): Promise<unknown> {
@@ -214,6 +214,21 @@ export async function saveSavingsGoal(goal: SavingsGoal): Promise<SavingsGoal> {
     body: JSON.stringify(goal),
   });
   return (await parseJsonOrThrow(res)) as SavingsGoal;
+}
+
+// Not scoped by student: each signed-in user (parent or student) has their own.
+export async function fetchEmailAlertSettings(): Promise<EmailAlertSettings> {
+  const res = await fetch("/api/notification-settings");
+  return (await parseJsonOrThrow(res)) as EmailAlertSettings;
+}
+
+export async function saveEmailAlertSettings(settings: EmailAlertSettings): Promise<EmailAlertSettings> {
+  const res = await fetch("/api/notification-settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  return (await parseJsonOrThrow(res)) as EmailAlertSettings;
 }
 
 export async function fetchRewardSettings(): Promise<RewardSettings> {

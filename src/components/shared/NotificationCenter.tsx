@@ -4,6 +4,7 @@ import { NOTIFICATION_TYPES, generateNotifications } from "../../lib/notificatio
 import { formatAmount } from "../../lib/rewards";
 import { useRewardSettings } from "../../lib/rewardSettingsContext";
 import { fetchPayouts } from "../../lib/api";
+import { EmailAlertsCard } from "./EmailAlertsCard";
 
 interface NotificationCenterProps {
   assignments: Assignment[];
@@ -68,17 +69,13 @@ export function NotificationCenter({ assignments, isParent, payoutPending, stude
             </button>
           </div>
         </div>
-        <p className="text-xs opacity-80 mt-2">🔔 Alerts show here in the app. Email and text alerts are coming soon.</p>
+        <p className="text-xs opacity-80 mt-2">🔔 Alerts show here in the app. Email alerts are being set up — pick yours under ⚙️ Settings.</p>
       </div>
 
       {showSettings && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2">
           <p className="font-bold text-gray-800 text-sm">⚙️ Notification Settings</p>
-          <p className="text-sm text-gray-600">
-            Email and text alerts aren't set up yet, so there's nothing to save here for now.
-            Alerts about due dates, retakes, grades and payouts show on this screen whenever you open the app.
-          </p>
-          <p className="text-xs text-gray-400">When email alerts arrive, you'll be able to enter your address and pick which alerts you get.</p>
+          <EmailAlertsCard isParent={isParent} studentName={studentName} />
         </div>
       )}
 

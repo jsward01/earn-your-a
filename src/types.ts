@@ -57,21 +57,14 @@ export interface AppNotification {
   subject?: string;
 }
 
-export interface NotificationSettings {
-  sms: boolean;
+/** A user's own email alert choices (`/api/notification-settings`). */
+export interface EmailAlertSettings {
   email: boolean;
-  inApp: boolean;
-  due3days: boolean;
+  emailAddr: string;
   due1day: boolean;
   dueToday: boolean;
   makeup: boolean;
   payout: boolean;
-  grade: boolean;
-  weekly: boolean;
-  phone: string;
-  emailAddr: string;
-  quietStart: string;
-  quietEnd: string;
 }
 
 export type Role = "student" | "parent";

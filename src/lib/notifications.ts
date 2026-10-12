@@ -1,4 +1,5 @@
 import type { Assignment, AppNotification, NotificationTypeKey, NotificationTypeMeta } from "../types";
+import { daysUntilDate } from "./dates";
 import { formatAmount, getRewardStatus, rewardAmountFor, type RewardRules } from "./rewards";
 
 export const NOTIFICATION_TYPES: Record<NotificationTypeKey, NotificationTypeMeta> = {
@@ -19,33 +20,33 @@ export function generateNotifications(
   pendingPayoutAmount: number | null,
   rules: RewardRules,
 ): AppNotification[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
   const notes: AppNotification[] = [];
+  // A parent reads about their student; the student reads about themselves.
+  const whose = isParent ? `${studentName}'s` : "Your";
 
   assignments.forEach(a => {
     if (a.status === "pending" && a.dueDate) {
-      const days = Math.ceil((new Date(a.dueDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const days = daysUntilDate(a.dueDate);
       const reward = formatAmount(rewardAmountFor(a.type, rules), rules, { short: true });
       if (days === 0) {
         notes.push({
           id: `dueToday-${a.id}`, type: "dueToday", read: false, time: "Today",
           title: `Due Today: ${a.title}`,
-          body: `Your ${a.subject} ${a.type} is due today! Complete it to earn ${reward}.`,
+          body: `${whose} ${a.subject} ${a.type} is due today! Complete it to earn ${reward}.`,
           subject: a.subject,
         });
       } else if (days === 1) {
         notes.push({
-          id: `due1day-${a.id}`, type: "due1day", read: false, time: "Yesterday",
+          id: `due1day-${a.id}`, type: "due1day", read: false, time: "Tomorrow",
           title: `Due Tomorrow: ${a.title}`,
-          body: `Don't forget — your ${a.subject} ${a.type} is due tomorrow. Worth ${reward}!`,
+          body: `Don't forget — ${isParent ? whose : "your"} ${a.subject} ${a.type} is due tomorrow. Worth ${reward}!`,
           subject: a.subject,
         });
       } else if (days <= 3) {
         notes.push({
-          id: `due3days-${a.id}`, type: "due3days", read: true, time: "2 days ago",
+          id: `due3days-${a.id}`, type: "due3days", read: true, time: `In ${days} days`,
           title: `Coming Up: ${a.title}`,
-          body: `Your ${a.subject} ${a.type} is due in ${days} days. Start early to earn ${reward}!`,
+          body: `${whose} ${a.subject} ${a.type} is due in ${days} days. Start early to earn ${reward}!`,
           subject: a.subject,
         });
       }
@@ -54,15 +55,16 @@ export function generateNotifications(
       notes.push({
         id: `makeup-${a.id}`, type: "makeup", read: a.daysLeft > 3, time: `${a.daysLeft} days left`,
         title: `Makeup Window: ${a.title}`,
-        body: `You have ${a.daysLeft} day${a.daysLeft !== 1 ? "s" : ""} left to retake this ${a.subject} ${a.type} and earn back ${formatAmount(rewardAmountFor(a.type, rules), rules, { short: true })}. Don't miss it!`,
+        body: `${isParent ? `${studentName} has` : "You have"} ${a.daysLeft} day${a.daysLeft !== 1 ? "s" : ""} left to retake this ${a.subject} ${a.type} and earn back ${formatAmount(rewardAmountFor(a.type, rules), rules, { short: true })}. Don't miss it!`,
         subject: a.subject,
       });
     }
-    if (a.status === "graded" && a.grade !== null) {
+    // No "graded on" date is stored, so "this week" means work due in the last 7 days (not every grade ever).
+    if (a.status === "graded" && a.grade !== null && a.dueDate && daysUntilDate(a.dueDate) >= -7 && daysUntilDate(a.dueDate) <= 0) {
       notes.push({
         id: `grade-${a.id}`, type: "grade", read: true, time: "This week",
         title: `Grade Posted: ${a.title}`,
-        body: `You received ${a.grade}% on your ${a.subject} ${a.type}. ${a.grade >= rules.passingThreshold ? "Great job! 🎉" : "Retake available — don't give up!"}`,
+        body: `${isParent ? `${studentName} received` : "You received"} ${a.grade}% on ${isParent ? "their" : "your"} ${a.subject} ${a.type}. ${a.grade >= rules.passingThreshold ? "Great job! 🎉" : "Retake available — don't give up!"}`,
         subject: a.subject,
       });
     }

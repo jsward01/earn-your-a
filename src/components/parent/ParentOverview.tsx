@@ -7,6 +7,7 @@ import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsCont
 import { daysUntilDate } from "../../lib/dates";
 import { splitPending } from "../../lib/assignments";
 import { ImportModal } from "./ImportModal";
+import { ClassAverages } from "../shared/ClassAverages";
 
 interface ParentOverviewProps {
   assignments: Assignment[];
@@ -71,7 +72,7 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
   }
 
   // Pending work splits in two: past due = waiting on the parent's grade, everything else is still coming up.
-  // Work from before rewards started is on record only, so it never needs attention here (it still counts in the average).
+  // Work from before rewards started is on record only, so it never needs attention here (it still counts in the class averages).
   const current = assignments.filter(a => !a.historyOnly);
   const { needsGrade, comingUp: upcoming } = splitPending(current);
 
@@ -80,9 +81,6 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
   const lowGrade = current.filter(a => a.status === "graded" && a.grade !== null && a.grade < rules.passingThreshold && !a.payoutId);
 
   const show = (f: Exclude<OverviewFilter, "all">) => filter === "all" || filter === f;
-
-  const graded = assignments.filter(a => a.grade !== null);
-  const avgGrade = graded.length ? Math.round(graded.reduce((s, a) => s + (a.grade ?? 0), 0) / graded.length) : 0;
 
   return (
     <div className="pb-4 px-4 pt-4 space-y-4">
@@ -124,12 +122,6 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
           </button>
         ))}
       </div>
-
-      {graded.length > 0 && (
-        <p className="text-xs text-gray-400 text-center -mt-2">
-          Overall average {avgGrade}% across {graded.length} graded {graded.length === 1 ? "item" : "items"} (all classes; Campus weights each class differently)
-        </p>
-      )}
 
       {/* SECTION 0: Needs your grade (past due, still ungraded) */}
       {show("toGrade") && (
@@ -284,6 +276,8 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
         }
       </div>
       )}
+
+      {filter === "all" && <ClassAverages assignments={assignments} />}
 
       {showPayoutModal && pending && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">

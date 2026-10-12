@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState } from "react";
 import type { Assignment, AssignmentType } from "../../types";
 import {
-  createAssignment, extractGrades, fetchImportIgnores, setRewardsStart, fetchRewardSummary, ignoreImportItem, readScreenshots, unignoreImportItem, updateAssignment,
+  createAssignment, extractGrades, fetchImportIgnores, setRewardsStart, fetchRewardSummary, ignoreImportItem, unignoreImportItem, updateAssignment,
 } from "../../lib/api";
 import { fileToScreenshotUpload } from "../../lib/screenshotImage";
 import { formatDay } from "../../lib/dates";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
-import { GRADE_SOURCES } from "../../lib/import/sources";
+import { detectFormat } from "../../lib/import/sources";
 import { buildPlan, estimateDelta, knownClasses, notInList, type IgnoreKey, type PlanKind, type PlanRow } from "../../lib/import/match";
 import { importKey } from "../../lib/import/normalize";
 import type { ImportedItem, ParseResult, SkippedLine } from "../../lib/import/types";
@@ -32,7 +32,7 @@ interface Outcome {
 }
 
 const SECTIONS: { kind: PlanKind; title: string; hint: string }[] = [
-  { kind: "new", title: "New", hint: "In Campus but not in the app" },
+  { kind: "new", title: "New", hint: "In this list but not in the app" },
   { kind: "update", title: "Updates", hint: "Grade or status changed" },
   { kind: "locked", title: "Paid out — can't change", hint: "Fix these with ± Adjust on the Balance page" },
   { kind: "unchanged", title: "Already up to date", hint: "" },
@@ -46,8 +46,6 @@ const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in loc
 export function ImportModal({ assignments, studentName, studentId, rewardsStartDate, onClose, onImported }: ImportModalProps) {
   const fmt = useFormatAmount();
   const rules = useRewardSettings();
-  const [sourceId, setSourceId] = useState(GRADE_SOURCES[0].id);
-  const source = GRADE_SOURCES.find(s => s.id === sourceId) ?? GRADE_SOURCES[0];
   const [text, setText] = useState("");
   // Asked once per student, before their first import: when do rewards start?
   const [startDate, setStartDate] = useState<string | null>(rewardsStartDate);
@@ -69,10 +67,12 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
   const [ignores, setIgnores] = useState<IgnoreKey[]>([]);
   const [busyRow, setBusyRow] = useState<number | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
-  // What's being read right now (text by the AI source, or screenshots), so each button shows its own progress.
+  // What's being read right now (text by the AI reader, or screenshots), so each button shows its own progress.
   const [reading, setReading] = useState<"text" | "screenshots" | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
   const [readNote, setReadNote] = useState<string | null>(null);
+  // How the last review was read: a dedicated parser's name, or the AI reader. Shown so a misread is easy to spot.
+  const [readAs, setReadAs] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const selected = useMemo(() => rows.filter(r => r.selected), [rows]);
@@ -155,14 +155,19 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
     onImported();
   });
 
-  /** Review pasted text: a local parser runs instantly; the AI source asks the server to read it first. */
+  /** Review pasted text: a dedicated parser runs instantly if it recognizes the layout; otherwise the AI reads it. */
   async function review(input: string) {
-    if (source.kind === "local") return showReview(source.parse(input, knownClasses(appAssignments)));
-    setReading("text");
     setReadError(null);
     setReadNote(null);
+    const detected = detectFormat(input, knownClasses(appAssignments));
+    if (detected) {
+      setReadAs(`${detected.source.name} (instant)`);
+      return showReview(detected.result);
+    }
+    setReading("text");
     try {
       const extracted = await extractGrades({ text: input });
+      setReadAs("AI (Claude)");
       await showReview(fromExtracted(extracted, knownClasses(appAssignments)));
     } catch (err) {
       setReadError(err instanceof Error ? err.message : "Couldn't read that");
@@ -171,6 +176,7 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
     }
   }
 
+  /** Screenshots from any school system: Claude reads them straight into assignments (plus any text already pasted). */
   async function handleScreenshots(files: FileList | null) {
     if (!files || files.length === 0) return;
     setReading("screenshots");
@@ -178,27 +184,10 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
     setReadNote(null);
     try {
       const uploads = await Promise.all([...files].slice(0, 8).map(fileToScreenshotUpload));
-      if (source.kind === "ai") {
-        // Any system: Claude reads the screenshots straight into assignments (plus any text already pasted).
-        const extracted = await extractGrades({ text: text.trim() || undefined, images: uploads });
-        setReadNote(`Read ${uploads.length} screenshot${uploads.length === 1 ? "" : "s"}.` + (files.length > 8 ? " Only the first 8 were used." : ""));
-        await showReview(fromExtracted(extracted, knownClasses(appAssignments)));
-        return;
-      }
-      const result = await readScreenshots(uploads);
-      if (!result.text.trim()) {
-        setReadError("No notifications could be read from that. Make sure the notification list is open and readable in the screenshot.");
-        return;
-      }
-      // Keep anything already pasted; the parser de-duplicates overlapping screenshots.
-      const combined = [text.trim(), result.text].filter(Boolean).join("\n");
-      setText(combined);
-      setReadNote(
-        `Read ${uploads.length} screenshot${uploads.length === 1 ? "" : "s"}.` +
-          (files.length > 8 ? " Only the first 8 were used." : "") +
-          (result.truncated ? " The list was very long and may be cut off — try fewer screenshots at a time." : ""),
-      );
-      review(combined);
+      const extracted = await extractGrades({ text: text.trim() || undefined, images: uploads });
+      setReadAs("AI (Claude)");
+      setReadNote(`Read ${uploads.length} screenshot${uploads.length === 1 ? "" : "s"}.` + (files.length > 8 ? " Only the first 8 were used." : ""));
+      await showReview(fromExtracted(extracted, knownClasses(appAssignments)));
     } catch (err) {
       setReadError(err instanceof Error ? err.message : "Couldn't read the screenshots");
     } finally {
@@ -345,15 +334,14 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
 
         {step === "paste" && (
           <>
-            {GRADE_SOURCES.length > 1 && (
-              <div>
-                <label htmlFor="import-source" className={label}>School system</label>
-                <select id="import-source" className={input} value={sourceId} onChange={e => { setSourceId(e.target.value); setReadError(null); }}>
-                  {GRADE_SOURCES.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
-            )}
-            <p className="text-sm text-gray-500">{source.instructions}</p>
+            <p className="text-sm text-gray-500">
+              In your school's parent or student portal, open the page that lists each assignment with its score (often Grades or
+              Assignments). Select it all, copy, and paste below — or upload screenshots of it.
+            </p>
+            <p className="text-xs text-gray-400">
+              Infinite Campus: Grades → Assignments works best (it has real due dates and upcoming work). Other portals are read by
+              Claude (AI) — double-check the points on each row.
+            </p>
             {startDate && (
               <p className="text-xs text-gray-400">
                 Rewards for {studentName} started {formatDay(startDate)}; anything due earlier comes in as history ($0).
@@ -387,10 +375,12 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
 
         {step === "review" && (
           <>
-            {readNote && <p className="text-xs text-gray-400">{readNote} Tap ‹ Back to see the text that was read.</p>}
+            {(readAs || readNote) && (
+              <p className="text-xs text-gray-400">{readAs && `Read as: ${readAs}.`} {readNote}</p>
+            )}
             {rows.length === 0 ? (
               <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-gray-700">
-                No assignments found in that. Make sure you copied the page that lists each assignment with its score{source.kind === "local" ? `, and that ${source.name} is the right school system above` : ""}.
+                No assignments found in that. Make sure you copied the page that lists each assignment with its score.
               </div>
             ) : (
               <p className="text-sm text-gray-500">

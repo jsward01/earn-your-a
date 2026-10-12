@@ -1,16 +1,5 @@
 import { normalize, stripTerm } from "./normalize";
-import type { ExtractedItem, GradeSource, ImportedItem, ParseResult, SkippedLine } from "./types";
-
-/** Any school system or class app, read by Claude (text and/or screenshots). */
-export const otherSystem: GradeSource = {
-  kind: "ai",
-  id: "other",
-  name: "Other school system (read by AI)",
-  instructions:
-    "For PowerSchool, Skyward, Synergy/ParentVUE, Aeries, Canvas, Schoology, Google Classroom, or anything else: open the page that lists " +
-    "assignments with scores (often Grades, Assignments, or a class's detail page), then select it all, copy, and paste below — or upload screenshots. " +
-    "Claude (AI) reads it into the same checklist; double-check the points on each row.",
-};
+import type { ExtractedItem, ImportedItem, ParseResult, SkippedLine } from "./types";
 
 const ISO = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 

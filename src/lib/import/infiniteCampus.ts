@@ -185,11 +185,7 @@ export function parseNotifications(text: string, knownClasses: string[] = [], no
 }
 
 export const infiniteCampus: GradeSource = {
-  kind: "local",
   id: "infinite-campus",
   name: "Infinite Campus",
-  instructions:
-    "Best: in Campus open Grades → Assignments (the list grouped by date), select it all, copy, and paste below — it has real due dates and upcoming work. " +
-    "Or screenshot the notifications (the bell) and upload them.",
   parse: parseInfiniteCampus,
 };

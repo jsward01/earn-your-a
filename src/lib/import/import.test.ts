@@ -4,7 +4,7 @@ import { findDate, parseInfiniteCampus, splitStamp, splitTitleAndClass } from ".
 import { buildPlan, estimateDelta, guessType, notInList } from "./match";
 import { DEFAULT_REWARD_SETTINGS } from "../rewards";
 import { fromExtracted } from "./other";
-import { GRADE_SOURCES } from "./sources";
+import { GRADE_SOURCES, detectFormat } from "./sources";
 import type { ExtractedItem } from "./types";
 
 const CLASSES = ["Geometry", "Biology", "CE / Computer Tech I A", "World Geo & Civilizations", "Spanish II", "English 10"];
@@ -502,8 +502,27 @@ describe("Other school system (AI-read) → import items", () => {
     expect(fromExtracted([x({ title: " " }), x({ className: "" })]).skipped).toHaveLength(2);
   });
 
-  it("is listed after Infinite Campus in the dropdown", () => {
-    expect(GRADE_SOURCES.map(s => [s.id, s.kind])).toEqual([["infinite-campus", "local"], ["other", "ai"]]);
+});
+
+describe("detectFormat", () => {
+  it("recognizes an Infinite Campus Assignments-list paste", () => {
+    const list = ["Monday 10/05/2026", "Assignment", "HW 1", "Geometry -S1", "Score", "9/10"].join("\n");
+    expect(detectFormat(list, [])?.source.id).toBe("infinite-campus");
+  });
+
+  it("recognizes Campus notification lines", () => {
+    const line = "Susana received a score of 8 out of 10 on HW 2 in Biology";
+    expect(detectFormat(line, [])?.result.items).toHaveLength(1);
+  });
+
+  it("returns null for another portal's layout, so the AI reader takes it", () => {
+    const powerschool = "Due Date\tCategory\tAssignment\tScore\n09/14/2026\tHomework\tChapter 2 Review\t18/20";
+    expect(detectFormat(powerschool, [])).toBeNull();
+    expect(detectFormat("", [])).toBeNull();
+  });
+
+  it("only lists dedicated parsers", () => {
+    expect(GRADE_SOURCES.map(s => s.id)).toEqual(["infinite-campus"]);
   });
 });
 

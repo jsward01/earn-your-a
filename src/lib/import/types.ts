@@ -1,7 +1,8 @@
 /**
- * Grade imports: each school system gets one `GradeSource` that turns pasted text into `ImportedItem`s. Everything
- * after parsing (matching to existing work, the review checklist, saving) is shared, so adding a system is one file
- * plus a line in `sources.ts`.
+ * Grade imports: a school system with a known paste layout gets one `GradeSource` that turns pasted text into
+ * `ImportedItem`s; anything no parser recognizes is read by Claude (`fromExtracted` in `other.ts`). Everything after
+ * parsing (matching to existing work, the review checklist, saving) is shared, so adding a parser is one file plus a
+ * line in `sources.ts`.
  */
 
 export interface ImportedItem {
@@ -53,21 +54,13 @@ export interface ExtractedItem {
   flags: string[];
 }
 
-interface SourceInfo {
+/**
+ * A parser written for one school system's exact paste layout (instant, free). The import tries each one on the
+ * pasted text; if none recognizes it, Claude reads it instead (functions/api/import/extract.ts).
+ */
+export interface GradeSource {
   id: string;
   name: string;
-  /** Where to copy from, in plain words, shown above the paste box. */
-  instructions: string;
+  /** `knownClasses` (subjects already in the app) helps split "NAME in CLASS" when a title itself contains " in ". */
+  parse(text: string, knownClasses: string[], now?: Date): ParseResult;
 }
-
-/**
- * How a school system's paste becomes items. "local": a parser written for that system's exact layout (instant,
- * free). "ai": Claude reads any layout, text or screenshots (a few seconds, costs a little per import).
- */
-export type GradeSource =
-  | (SourceInfo & {
-      kind: "local";
-      /** `knownClasses` (subjects already in the app) helps split "NAME in CLASS" when a title itself contains " in ". */
-      parse(text: string, knownClasses: string[], now?: Date): ParseResult;
-    })
-  | (SourceInfo & { kind: "ai" });

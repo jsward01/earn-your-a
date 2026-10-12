@@ -40,6 +40,8 @@ For each item:
 - dueDate: the due date as YYYY-MM-DD, else null. Today is ${today}; resolve "Today", "Yesterday", weekday names, and dates without a year relative to it.
 - flags: other markers shown for the item, lowercase, e.g. "late", "incomplete", "collected". Leave out "missing", "dropped" and "exempt" (they go in status).
 
+Notification feeds count too: in a line like "<student> received a score of 8 out of 10 on NAME in CLASS", NAME is the title and CLASS the class; "<student>'s assignment NAME in CLASS has been flagged (Missing)" is missing. A notification has no due date, so use its date stamp (when shown) as dueDate.
+
 Skip anything that is not a single assignment: class/semester/term averages, category totals, attendance, announcements, and page navigation. Never invent items or numbers; if a value isn't shown, use null. If the same assignment appears more than once, include it once with the most recent information.`;
 
 /**

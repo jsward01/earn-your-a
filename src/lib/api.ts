@@ -254,6 +254,8 @@ export interface FamilyAccount {
   avatar: string | null;
   /** Students only: when rewards started (null = not set yet). */
   rewardsStartDate?: string | null;
+  /** Students only: false = a parent turned off alert emails to this student. */
+  emailAlertsAllowed?: boolean;
 }
 
 export async function fetchFamilyAccounts(): Promise<FamilyAccount[]> {
@@ -367,6 +369,16 @@ export async function extractGrades(input: { text?: string; images?: { mediaType
     body: JSON.stringify({ ...input, today: new Date().toLocaleDateString("en-CA") }),
   });
   return ((await parseJsonOrThrow(res)) as { items: ExtractedItem[] }).items;
+}
+
+/** Parent-only: allow or stop alert emails to a student. */
+export async function setStudentEmailAlerts(studentId: string, allowed: boolean): Promise<boolean> {
+  const res = await fetch(`/api/users/${studentId}/email-alerts`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ allowed }),
+  });
+  return ((await parseJsonOrThrow(res)) as { emailAlertsAllowed: boolean }).emailAlertsAllowed;
 }
 
 /** Parent-only: set when rewards start for a student (YYYY-MM-DD, today or earlier). */

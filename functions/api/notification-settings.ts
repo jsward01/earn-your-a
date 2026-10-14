@@ -11,6 +11,13 @@ function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 }
 
+/** Students only: a parent can turn off all alert emails to a student (Settings → Family). Parents are always allowed. */
+async function allowedByParent(db: D1Database, user: { id: string; role: string }): Promise<boolean> {
+  if (user.role !== "student") return true;
+  const row = await db.prepare("SELECT email_alerts_allowed FROM users WHERE id = ?").bind(user.id).first<{ email_alerts_allowed: number }>();
+  return row?.email_alerts_allowed !== 0;
+}
+
 // Settings belong to the signed-in user (parent or student), never to a ?studentId= —
 // a parent can't read or change their student's email address from here.
 export const onRequestGet: PagesFunction<Env> = async (context) => {
@@ -22,7 +29,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     .bind(user.id)
     .first<NotificationSettingsRow>();
 
-  return json(row ? fromRow(row) : defaultEmailAlertSettings(user.email), 200);
+  const settings = row ? fromRow(row) : defaultEmailAlertSettings(user.email);
+  return json({ ...settings, allowedByParent: await allowedByParent(context.env.DB, user) }, 200);
 };
 
 export const onRequestPut: PagesFunction<Env> = async (context) => {
@@ -58,5 +66,5 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
     )
     .run();
 
-  return json(settings, 200);
+  return json({ ...settings, allowedByParent: await allowedByParent(context.env.DB, user) }, 200);
 };

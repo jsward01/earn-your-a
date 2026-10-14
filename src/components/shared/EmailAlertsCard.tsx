@@ -74,6 +74,11 @@ export function EmailAlertsCard({ isParent, studentName }: EmailAlertsCardProps)
 
   return (
     <div className="space-y-3">
+      {settings.allowedByParent === false && (
+        <p className="text-sm bg-amber-50 text-amber-800 border border-amber-200 rounded-xl px-3 py-2">
+          A parent has turned off email alerts for you, so no emails will be sent. Your choices below are kept for when they turn it back on.
+        </p>
+      )}
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-800">Email me alerts</p>

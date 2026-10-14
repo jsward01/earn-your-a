@@ -1,0 +1,20 @@
+{
+  // Email alerts Worker. Deployed on its own (a push to main does NOT deploy it):
+  //   npx wrangler deploy -c workers/alerts/wrangler.jsonc
+  // Needs the secret RESEND_API_KEY:  npx wrangler secret put RESEND_API_KEY -c workers/alerts/wrangler.jsonc
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "earn-your-a-alerts",
+  "main": "index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": false,
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "observability": { "enabled": true },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "earn-your-a-db",
+      "database_id": "5633661c-8282-4452-a963-88a72e1f81d4",
+      "migrations_dir": "../../migrations"
+    }
+  ]
+}

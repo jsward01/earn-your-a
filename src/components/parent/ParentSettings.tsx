@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AuthUser, RewardSettings } from "../../types";
-import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, setRewardsStart, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
+import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, setRewardsStart, setStudentEmailAlerts, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
 import { formatDay } from "../../lib/dates";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
 import { AppearanceCard } from "../shared/AppearanceCard";
@@ -104,6 +104,22 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
   const [startDraft, setStartDraft] = useState("");
   const [savingStart, setSavingStart] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+
+  const [alertsSaving, setAlertsSaving] = useState<string | null>(null);
+  const [alertsError, setAlertsError] = useState<{ id: string; message: string } | null>(null);
+
+  async function handleToggleEmailAlerts(studentId: string, allowed: boolean) {
+    setAlertsSaving(studentId);
+    setAlertsError(null);
+    try {
+      await setStudentEmailAlerts(studentId, allowed);
+      loadAccounts();
+    } catch (err) {
+      setAlertsError({ id: studentId, message: err instanceof Error ? err.message : "Couldn't save" });
+    } finally {
+      setAlertsSaving(null);
+    }
+  }
 
   async function handleSaveStart(studentId: string) {
     setSavingStart(true);
@@ -381,6 +397,25 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
                               className="text-indigo-600 font-medium">Change</button>
                           </p>
                         )
+                      )}
+                      {a.role === "student" && (
+                        <div className="mt-1.5 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-gray-600">Allow email alerts</p>
+                            <p className="text-xs text-gray-400">
+                              {a.emailAlertsAllowed === false
+                                ? `Off: no alert emails go to ${a.name.split(" ")[0]}. Your own alerts aren't affected.`
+                                : `${a.name.split(" ")[0]} can turn on their own alerts in Alerts → Settings.`}
+                            </p>
+                            {alertsError?.id === a.id && <p className="text-xs text-red-500">{alertsError.message}</p>}
+                          </div>
+                          <button role="switch" aria-checked={a.emailAlertsAllowed !== false} aria-label={`Allow email alerts for ${a.name}`}
+                            disabled={alertsSaving === a.id}
+                            onClick={() => handleToggleEmailAlerts(a.id, a.emailAlertsAllowed === false)}
+                            className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-50 ${a.emailAlertsAllowed !== false ? "bg-emerald-700" : "bg-gray-200"}`}>
+                            <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow ${a.emailAlertsAllowed !== false ? "left-6" : "left-0.5"}`} />
+                          </button>
+                        </div>
                       )}
                       {canReset && (
                         <button

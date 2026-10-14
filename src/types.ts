@@ -65,6 +65,8 @@ export interface EmailAlertSettings {
   dueToday: boolean;
   makeup: boolean;
   payout: boolean;
+  /** Students: false when a parent turned off email alerts for them (Settings → Family). Read-only. */
+  allowedByParent?: boolean;
 }
 
 export type Role = "student" | "parent";

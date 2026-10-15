@@ -390,3 +390,40 @@ export async function setRewardsStart(studentId: string, date: string): Promise<
   });
   return ((await parseJsonOrThrow(res)) as { rewardsStartDate: string }).rewardsStartDate;
 }
+
+/** Parent-only: delete several assignments at once. Paid-out work is skipped (it's archived), not deleted. */
+export async function deleteAssignments(ids: string[]): Promise<{ deleted: string[]; skipped: { id: string; reason: "not_found" | "paid_out" }[]; balance: number | null }> {
+  const res = await fetch("/api/assignments/bulk-delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  return (await parseJsonOrThrow(res)) as { deleted: string[]; skipped: { id: string; reason: "not_found" | "paid_out" }[]; balance: number | null };
+}
+
+export interface ExcludedClass {
+  id: string;
+  classKey: string;
+  className: string;
+  createdAt: string;
+  createdByName: string | null;
+}
+
+export async function fetchExcludedClasses(): Promise<ExcludedClass[]> {
+  const res = await fetch(scoped("/api/excluded-classes"));
+  return (await parseJsonOrThrow(res)) as ExcludedClass[];
+}
+
+export async function excludeClass(className: string): Promise<ExcludedClass> {
+  const res = await fetch(scoped("/api/excluded-classes"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ className }),
+  });
+  return (await parseJsonOrThrow(res)) as ExcludedClass;
+}
+
+export async function includeClass(id: string): Promise<void> {
+  const res = await fetch(`/api/excluded-classes/${id}`, { method: "DELETE" });
+  await parseJsonOrThrow(res);
+}

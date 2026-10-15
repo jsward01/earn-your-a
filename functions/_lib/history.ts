@@ -28,3 +28,30 @@ export async function getRecordedReward(db: D1Database, assignmentId: string): P
     .first<{ total: number | null }>();
   return row?.total ?? null;
 }
+
+/**
+ * Delete one assignment and its ledger row, and record the delete in its history. Callers check access first
+ * (family, role, not paid out).
+ */
+export async function deleteAssignmentWithHistory(
+  db: D1Database,
+  existing: { id: string; student_id: string; title: string; type: string; status: string; grade: number | null },
+  familyId: string,
+  actorId: string,
+): Promise<void> {
+  const ledgerBefore = await getRecordedReward(db, existing.id);
+  await db.prepare("DELETE FROM reward_transactions WHERE assignment_id = ?").bind(existing.id).run();
+  await db.prepare("DELETE FROM assignments WHERE id = ?").bind(existing.id).run();
+
+  const graded = existing.grade !== null ? `, ${existing.grade}%` : "";
+  await recordHistory(db, {
+    familyId,
+    assignmentId: existing.id,
+    studentId: existing.student_id,
+    actorId,
+    action: "delete",
+    summary: `Deleted "${existing.title}" (${existing.type}, ${existing.status}${graded})`,
+    ledgerBefore,
+    ledgerAfter: null,
+  });
+}

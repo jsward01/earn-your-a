@@ -3,7 +3,7 @@ import { importKey, normalize } from "./normalize";
 import type { ImportedItem } from "./types";
 import { penaltyAmountFor, rewardAmountFor, type RewardRules } from "../rewards";
 
-export type PlanKind = "new" | "update" | "unchanged" | "locked" | "ignored";
+export type PlanKind = "new" | "update" | "unchanged" | "locked" | "ignored" | "excluded";
 
 export interface PlanRow {
   item: ImportedItem;
@@ -48,7 +48,14 @@ function describe(a: Assignment): string {
  * Compare imported items with the student's assignments (matched by class + title, ignoring case and punctuation).
  * Only items that would actually change something are pre-ticked.
  */
-export function buildPlan(items: ImportedItem[], assignments: Assignment[], ignores: IgnoreKey[] = [], rewardsStart: string | null = null): PlanRow[] {
+export function buildPlan(
+  items: ImportedItem[],
+  assignments: Assignment[],
+  ignores: IgnoreKey[] = [],
+  rewardsStart: string | null = null,
+  excludedClasses: string[] = [],
+): PlanRow[] {
+  const excluded = new Set(excludedClasses);
   const ignored = new Map(ignores.map(i => [`${i.classKey}\u0000${i.titleKey}`, i.id]));
   const byKey = new Map<string, Assignment>();
   for (const a of assignments) {
@@ -58,6 +65,10 @@ export function buildPlan(items: ImportedItem[], assignments: Assignment[], igno
 
   const rows = items.map((item): PlanRow => {
     const existing = byKey.get(importKey(item.className, item.title)) ?? null;
+    // A class left out of imports: nothing in it is added or changed, whether or not the app already has it.
+    if (excluded.has(normalize(item.className))) {
+      return { item, kind: "excluded", existing, type: existing?.type ?? guessType(item.title), selected: false, note: "This class is left out of imports" };
+    }
     const incoming = item.status === "graded" ? `${item.grade}%` : item.status;
 
     if (!existing) {
@@ -130,6 +141,7 @@ export function notInList(rows: PlanRow[], assignments: Assignment[]): Assignmen
 
 /** What a row would add to the balance, priced at today's rates (the server does the real pricing on save). */
 export function estimateDelta(r: PlanRow, rules: RewardRules): number {
+  if (r.kind === "excluded" || r.kind === "ignored") return 0;
   const after =
     r.history || r.existing?.historyOnly
       ? 0
@@ -141,6 +153,18 @@ export function estimateDelta(r: PlanRow, rules: RewardRules): number {
         ? rewardAmountFor(r.type, rules)
         : -penaltyAmountFor(r.type, rules);
   return after - (r.existing?.recordedReward ?? 0);
+}
+
+/** The classes in a list, with how many of its items each has (for the "leave out a class" picker). */
+export function classCounts(items: ImportedItem[]): { className: string; count: number }[] {
+  const counts = new Map<string, { className: string; count: number }>();
+  for (const item of items) {
+    const key = normalize(item.className);
+    const entry = counts.get(key) ?? { className: item.className, count: 0 };
+    entry.count++;
+    counts.set(key, entry);
+  }
+  return [...counts.values()].sort((a, b) => a.className.localeCompare(b.className));
 }
 
 /** Known class names for the parser: whatever subjects the student's work already uses. */

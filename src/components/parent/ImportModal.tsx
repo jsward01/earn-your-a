@@ -1,14 +1,15 @@
 import { useMemo, useRef, useState } from "react";
 import type { Assignment, AssignmentType } from "../../types";
 import {
-  createAssignment, extractGrades, fetchImportIgnores, setRewardsStart, fetchRewardSummary, ignoreImportItem, unignoreImportItem, updateAssignment,
+  createAssignment, deleteAssignments, excludeClass, extractGrades, fetchExcludedClasses, fetchImportIgnores, includeClass, setRewardsStart,
+  fetchRewardSummary, ignoreImportItem, unignoreImportItem, updateAssignment, type ExcludedClass,
 } from "../../lib/api";
 import { fileToScreenshotUpload } from "../../lib/screenshotImage";
 import { formatDay } from "../../lib/dates";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import { detectFormat } from "../../lib/import/sources";
-import { buildPlan, estimateDelta, knownClasses, notInList, type IgnoreKey, type PlanKind, type PlanRow } from "../../lib/import/match";
-import { importKey } from "../../lib/import/normalize";
+import { buildPlan, classCounts, estimateDelta, knownClasses, notInList, type IgnoreKey, type PlanKind, type PlanRow } from "../../lib/import/match";
+import { importKey, normalize } from "../../lib/import/normalize";
 import type { ImportedItem, ParseResult, SkippedLine } from "../../lib/import/types";
 import { fromExtracted } from "../../lib/import/other";
 
@@ -37,8 +38,9 @@ const SECTIONS: { kind: PlanKind; title: string; hint: string }[] = [
   { kind: "locked", title: "Paid out — can't change", hint: "Fix these with ± Adjust on the Balance page" },
   { kind: "unchanged", title: "Already up to date", hint: "" },
   { kind: "ignored", title: "Ignored", hint: "You chose not to import these. They stay here on every import until you stop ignoring them." },
+  { kind: "excluded", title: "Left out — class excluded", hint: "Tap the class under “Classes in this list” to include it again." },
 ];
-const COLLAPSIBLE: PlanKind[] = ["unchanged", "ignored"];
+const COLLAPSIBLE: PlanKind[] = ["unchanged", "ignored", "excluded"];
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
 
@@ -65,6 +67,11 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
   // The modal's own copy, so a "Same assignment" rename shows immediately without waiting for the app to reload.
   const [appAssignments, setAppAssignments] = useState<Assignment[]>(assignments);
   const [ignores, setIgnores] = useState<IgnoreKey[]>([]);
+  const [excluded, setExcluded] = useState<ExcludedClass[]>([]);
+  const [classBusy, setClassBusy] = useState<string | null>(null);
+  // Just left a class out, and the app already has unpaid work in it: offer to delete that too.
+  const [cleanup, setCleanup] = useState<{ className: string; items: Assignment[]; paidOut: number } | null>(null);
+  const [cleaning, setCleaning] = useState(false);
   const [busyRow, setBusyRow] = useState<number | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
   // What's being read right now (text by the AI reader, or screenshots), so each button shows its own progress.
@@ -82,10 +89,15 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
   /** Show the checklist for a parse result (from a local parser or the AI reader). */
   async function showReview(result: ParseResult) {
     // If the ignore list can't load, show everything rather than block the import.
-    const saved = await fetchImportIgnores().catch(err => { console.error("Failed to load ignored imports", err); return []; });
+    const [saved, left] = await Promise.all([
+      fetchImportIgnores().catch(err => { console.error("Failed to load ignored imports", err); return []; }),
+      fetchExcludedClasses().catch(err => { console.error("Failed to load excluded classes", err); return []; }),
+    ]);
     setItems(result.items);
     setIgnores(saved);
-    setRows(buildPlan(result.items, appAssignments, saved, startDate));
+    setExcluded(left);
+    setCleanup(null);
+    setRows(buildPlan(result.items, appAssignments, saved, startDate, left.map(e => e.classKey)));
     setSkipped(result.skipped);
     setComplete(result.complete);
     setRowError(null);
@@ -93,10 +105,10 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
   }
 
   /** Re-match after an ignore/rename, keeping the parent's ticks and type choices on rows that didn't change kind. */
-  function rebuild(nextAssignments: Assignment[], nextIgnores: IgnoreKey[]) {
+  function rebuild(nextAssignments: Assignment[], nextIgnores: IgnoreKey[], nextExcluded: ExcludedClass[] = excluded) {
     setRows(prev => {
       const before = new Map(prev.map(r => [importKey(r.item.className, r.item.title), r]));
-      return buildPlan(items, nextAssignments, nextIgnores, startDate).map(r => {
+      return buildPlan(items, nextAssignments, nextIgnores, startDate, nextExcluded.map(e => e.classKey)).map(r => {
         const old = before.get(importKey(r.item.className, r.item.title));
         return old && old.kind === r.kind ? { ...r, selected: old.selected, type: old.type } : r;
       });
@@ -144,6 +156,54 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
     setIgnores(next);
     rebuild(appAssignments, next);
   });
+
+  /** Leave a whole class out of imports (saved for next time), or include it again. */
+  async function toggleClass(className: string) {
+    const key = normalize(className);
+    const entry = excluded.find(e => e.classKey === key);
+    setClassBusy(key);
+    setRowError(null);
+    try {
+      if (entry) {
+        await includeClass(entry.id);
+        const next = excluded.filter(e => e.id !== entry.id);
+        setExcluded(next);
+        rebuild(appAssignments, ignores, next);
+        if (cleanup && normalize(cleanup.className) === key) setCleanup(null);
+      } else {
+        const added = await excludeClass(className);
+        const next = [...excluded, added];
+        setExcluded(next);
+        rebuild(appAssignments, ignores, next);
+        const inApp = appAssignments.filter(a => normalize(a.subject) === key);
+        const unpaid = inApp.filter(a => !a.payoutId);
+        setCleanup(unpaid.length > 0 ? { className, items: unpaid, paidOut: inApp.length - unpaid.length } : null);
+      }
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : "That didn't work — try again");
+    } finally {
+      setClassBusy(null);
+    }
+  }
+
+  async function handleCleanup() {
+    if (!cleanup) return;
+    setCleaning(true);
+    setRowError(null);
+    try {
+      const { deleted } = await deleteAssignments(cleanup.items.map(a => a.id));
+      const gone = new Set(deleted);
+      const next = appAssignments.filter(a => !gone.has(a.id));
+      setAppAssignments(next);
+      rebuild(next, ignores);
+      setCleanup(null);
+      onImported();
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : "Couldn't delete them — try again");
+    } finally {
+      setCleaning(false);
+    }
+  }
 
   // The app's item and the school's are the same assignment: take the school's name so future imports match exactly.
   // Only the title changes, so the reward doesn't.
@@ -236,7 +296,7 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
           <input type="checkbox" checked={r.selected} onChange={e => patchRow(i, { selected: e.target.checked })}
             className="mt-1 h-4 w-4 shrink-0 accent-indigo-600" aria-label={`Import ${r.item.title}`} />
         ) : (
-          <span className="mt-0.5 w-4 shrink-0 text-center text-sm">{r.kind === "locked" ? "🔒" : r.kind === "ignored" ? "–" : "✓"}</span>
+          <span className="mt-0.5 w-4 shrink-0 text-center text-sm">{r.kind === "locked" ? "🔒" : r.kind === "ignored" || r.kind === "excluded" ? "–" : "✓"}</span>
         )}
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -389,6 +449,58 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
             )}
 
             {rowError && <p className="text-sm text-red-500">{rowError}</p>}
+
+            {rows.length > 0 && (
+              <div className="rounded-2xl border border-gray-100 px-4 py-3 space-y-2">
+                <div>
+                  <p className="text-sm font-semibold text-gray-700">Classes in this list</p>
+                  <p className="text-xs text-gray-400">Tap a class to leave it out of imports — now and every time after. Tap it again to include it.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ...classCounts(items),
+                    ...excluded.filter(e => !items.some(i => normalize(i.className) === e.classKey)).map(e => ({ className: e.className, count: 0 })),
+                  ].map(c => {
+                    const key = normalize(c.className);
+                    const out = excluded.some(e => e.classKey === key);
+                    return (
+                      <button key={key} onClick={() => toggleClass(c.className)} disabled={classBusy !== null || saving}
+                        aria-pressed={out} aria-label={out ? `Include ${c.className} again` : `Leave out ${c.className}`}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-full border disabled:opacity-50 ${out
+                          ? "bg-gray-100 text-gray-400 border-gray-200 line-through"
+                          : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>
+                        {classBusy === key ? "Saving…" : `${c.className}${c.count ? ` (${c.count})` : ""}`}
+                      </button>
+                    );
+                  })}
+                </div>
+                {excluded.length > 0 && (
+                  <p className="text-xs text-gray-400">Left out: {excluded.map(e => e.className).join(", ")}</p>
+                )}
+              </div>
+            )}
+
+            {cleanup && (
+              <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 space-y-2">
+                <p className="text-sm text-gray-700">
+                  <span className="font-semibold">{cleanup.items.length} {cleanup.className} item{cleanup.items.length === 1 ? " is" : "s are"} already in the app</span>
+                  {" "}(worth {fmt(cleanup.items.reduce((s, a) => s + (a.recordedReward ?? 0), 0), { signed: true })} on the balance). Delete {cleanup.items.length === 1 ? "it" : "them"} too?
+                </p>
+                {cleanup.paidOut > 0 && (
+                  <p className="text-xs text-gray-500">{cleanup.paidOut} more {cleanup.paidOut === 1 ? "was" : "were"} already paid out and stay{cleanup.paidOut === 1 ? "s" : ""} on record.</p>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={handleCleanup} disabled={cleaning}
+                    className="flex-1 bg-red-600 text-white py-2 rounded-xl text-sm font-semibold disabled:opacity-40">
+                    {cleaning ? "Deleting…" : `Delete ${cleanup.items.length}`}
+                  </button>
+                  <button onClick={() => setCleanup(null)} disabled={cleaning}
+                    className="flex-1 bg-white text-gray-600 py-2 rounded-xl text-sm border border-gray-200 disabled:opacity-40">
+                    Keep them
+                  </button>
+                </div>
+              </div>
+            )}
 
             {SECTIONS.map(sec => {
               const list = rows.map((r, i) => [r, i] as const).filter(([r]) => r.kind === sec.kind);

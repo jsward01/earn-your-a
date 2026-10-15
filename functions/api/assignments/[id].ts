@@ -3,7 +3,7 @@ import { getSessionUser } from "../../_lib/session";
 import { ARCHIVED_MESSAGE, NO_MAKEUP, getAssignmentRow, nextMakeupState, toAssignmentJson, type AssignmentRow } from "../../_lib/assignments";
 import { computeAssignmentReward, getBalance, getFullRewardSettings, syncAssignmentRewardTransaction } from "../../_lib/rewards";
 import { affectsLedger, checkStudentDelete, checkStudentEdit, diffFields, fieldsFromRow, gradeError, isIsoDate, summarizeChanges, type Fields } from "../../_lib/assignmentEdits";
-import { getRecordedReward, recordHistory } from "../../_lib/history";
+import { deleteAssignmentWithHistory, getRecordedReward, recordHistory } from "../../_lib/history";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -156,21 +156,7 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
     if (!verdict.ok) return json({ error: verdict.error }, 403);
   }
 
-  const ledgerBefore = await getRecordedReward(db, id);
-  await db.prepare("DELETE FROM reward_transactions WHERE assignment_id = ?").bind(id).run();
-  await db.prepare("DELETE FROM assignments WHERE id = ?").bind(id).run();
-
-  const graded = existing.grade !== null ? `, ${existing.grade}%` : "";
-  await recordHistory(db, {
-    familyId: user.familyId,
-    assignmentId: id,
-    studentId: existing.student_id,
-    actorId: user.id,
-    action: "delete",
-    summary: `Deleted "${existing.title}" (${existing.type}, ${existing.status}${graded})`,
-    ledgerBefore,
-    ledgerAfter: null,
-  });
+  await deleteAssignmentWithHistory(db, existing, user.familyId, user.id);
 
   return new Response(null, { status: 204 });
 };

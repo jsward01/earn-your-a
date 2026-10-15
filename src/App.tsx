@@ -221,6 +221,7 @@ export default function App() {
             onEdit={a => setEditor({ assignment: a })}
             onAdd={() => setEditor({ assignment: null })}
             onChanged={refreshSummary}
+            onDeleted={() => { reloadAssignments(); refreshSummary(); }}
           />
         )}
         {isParent && view === "dashboard" && (

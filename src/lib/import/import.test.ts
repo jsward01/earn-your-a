@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Assignment } from "../../types";
 import { findDate, parseInfiniteCampus, splitStamp, splitTitleAndClass } from "./infiniteCampus";
-import { buildPlan, estimateDelta, guessType, notInList } from "./match";
+import { buildPlan, classCounts, estimateDelta, guessType, notInList } from "./match";
 import { DEFAULT_REWARD_SETTINGS } from "../rewards";
 import { fromExtracted } from "./other";
 import { GRADE_SOURCES, detectFormat } from "./sources";
@@ -445,6 +445,46 @@ describe("ignored items", () => {
     ]);
     expect(rows[0]).toMatchObject({ kind: "ignored" });
     expect(rows[0].similar).toBeUndefined();
+  });
+});
+
+describe("excluded classes", () => {
+  const parsed = () =>
+    parseInfiniteCampus(
+      "Thursday 09/03/2026\nAssignment\nVocab Quiz\nSpanish II -S1\nScore\n9/10\nAssignment\nHW 9\nGeometry -S1\nScore\n1/1\nAssignment\nHabla 2\nSpanish II -S1\nScore\n4/5",
+      ["Geometry", "Spanish II"],
+    ).items;
+
+  it("every item in an excluded class is left out and unticked", () => {
+    const rows = buildPlan(parsed(), [], [], null, ["spanish ii"]);
+    expect(rows.map(r => [r.item.title, r.kind, r.selected])).toEqual([
+      ["Vocab Quiz", "excluded", false],
+      ["HW 9", "new", true],
+      ["Habla 2", "excluded", false],
+    ]);
+  });
+
+  it("an excluded class never updates work already in the app either", () => {
+    const existing = a({ id: "e", title: "Vocab Quiz", subject: "Spanish II", status: "pending" });
+    const [row] = buildPlan(parsed(), [existing], [], null, ["spanish ii"]);
+    expect(row).toMatchObject({ kind: "excluded", existing, selected: false });
+    expect(estimateDelta(row, { ...DEFAULT_REWARD_SETTINGS })).toBe(0);
+  });
+
+  it("no excluded classes = nothing changes", () => {
+    expect(buildPlan(parsed(), [], [], null, []).every(r => r.kind === "new")).toBe(true);
+  });
+
+  it("excluded items aren't offered as near-duplicates", () => {
+    const rows = buildPlan(parsed(), [a({ id: "x", title: "Vocab", subject: "Spanish II", status: "graded", grade: 90 })], [], null, ["spanish ii"]);
+    expect(rows[0].similar).toBeUndefined();
+  });
+
+  it("classCounts lists each class once with its item count, sorted", () => {
+    expect(classCounts(parsed())).toEqual([
+      { className: "Geometry", count: 1 },
+      { className: "Spanish II", count: 2 },
+    ]);
   });
 });
 

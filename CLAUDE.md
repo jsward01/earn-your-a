@@ -315,9 +315,9 @@ Commit `97975d5` ("Wire rewards/payouts to D1, add real branding, add password r
 - **Both Jonathan and Susana already had email on** (every alert type), so real emails start at the next window with no further setup.
 - **Quiet hours** (commit `2c4bfee`): per person in Alerts → Settings, default **8 PM–6 AM** (Jonathan's ask). Stored in the existing `notification_settings.quiet_start/quiet_end` ("HH:00"; NULL = default, "" = off), so no migration. Inside quiet hours a digest is skipped and a payout email waits until they end. In effect the evening digest now only goes out 6–8 PM. The Alerts card's "Emails haven't started yet" note is replaced with the real send times.
 
-**▶ START HERE:**
+**▶ START HERE (Oct 16): confirm the first real emails.** Jonathan stopped for the day around 1 PM Oct 15, before the first evening window, so nothing had been checked yet.
 1. ~~Ship quiet hours~~: LIVE Oct 15. Site `775344d` (asset `index-DIykGPhY.js`); Worker redeployed by Jonathan (`b1e63094…`).
-2. **First real email:** after 6 PM Denver time, watch `npx wrangler tail earn-your-a-alerts` and `SELECT * FROM email_log` (read-only, remote). Check Gmail: inbox, not spam, and the HTML looks OK on a phone.
+2. **First real email:** run `SELECT * FROM email_log` (read-only, remote) to see whether the Oct 15 evening (6–8 PM) and Oct 16 morning (7 AM) digests went out (status `sent`/`failed`, plus a `detail` column). For live runs, watch `npx wrangler tail earn-your-a-alerts` and `SELECT * FROM email_log` (read-only, remote). Check Gmail: inbox, not spam, and the HTML looks OK on a phone.
 3. **Look at the live switch:** Settings → Family → "Allow email alerts" on Susana's card (logged in as parent; also check phone width). Not yet seen in a browser. Also check the new Quiet hours controls on the live site. Chrome screenshots failed on Oct 15; the DOM check passed locally.
 4. Susana's address is her school account (`@lpsk12.org`): school mail may filter outside senders, so if her email never arrives, suggest a personal address.
 

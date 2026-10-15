@@ -193,6 +193,16 @@ export async function requestPayout(): Promise<PayoutRequestRow> {
   return (await parseJsonOrThrow(res)) as PayoutRequestRow;
 }
 
+/** Parent-only: pay out now (any time, whatever the payout schedule). Paid at once; default amount = what's available. */
+export async function parentPayout(amount: number): Promise<PayoutRequestRow> {
+  const res = await fetch(scoped("/api/payouts"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ amount }),
+  });
+  return (await parseJsonOrThrow(res)) as PayoutRequestRow;
+}
+
 export async function resolvePayout(id: string, action: "approve" | "deny"): Promise<PayoutRequestRow> {
   const res = await fetch(`/api/payouts/${id}`, {
     method: "PATCH",

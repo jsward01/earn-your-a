@@ -1,6 +1,6 @@
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
-import { ARCHIVE_ON_PAYOUT_WHERE } from "../../_lib/assignments";
+import { payOutStatements } from "../../_lib/payouts";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -56,37 +56,16 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
     return json({ error: "action must be 'approve' or 'deny'" }, 400);
   }
 
-  // One atomic batch (D1 runs a batch as a single transaction). Every write is guarded by "the request is still
-  // pending" and the status flip comes LAST, so a double-tap, or two parents approving at once, can never deduct
-  // twice: the second batch runs after the first has set 'paid' and finds nothing to do. Approve = four writes
-  // (ledger deduction, archive/lock of the paid work and of manual adjustments, status); deny = just the status.
+  // Approve = the pay-out writes (see payOutStatements); deny = just the status, guarded the same way.
   const db = context.env.DB;
-  const stillPending = "EXISTS (SELECT 1 FROM payout_requests p WHERE p.id = ? AND p.status = 'pending')";
-  const newStatus = body.action === "approve" ? "paid" : "denied";
-  const statements: D1PreparedStatement[] = [];
-  if (body.action === "approve") {
-    statements.push(
-      db
-        .prepare(
-          `INSERT INTO reward_transactions (id, family_id, student_id, assignment_id, amount, reason)
-           SELECT ?, family_id, student_id, NULL, -amount, 'Payout approved' FROM payout_requests WHERE id = ? AND status = 'pending'`,
-        )
-        .bind(crypto.randomUUID(), id),
-      // Paying out settles the period: archive (and so lock) the finished work that was paid for.
-      db
-        .prepare(`UPDATE assignments SET payout_id = ? WHERE student_id = ? AND ${ARCHIVE_ON_PAYOUT_WHERE} AND ${stillPending}`)
-        .bind(id, existing.student_id, id),
-      // Manual adjustments settle the same way: they move to that payout's Past Grades and can no longer be reversed there.
-      db
-        .prepare(`UPDATE reward_transactions SET payout_id = ? WHERE student_id = ? AND kind = 'adjustment' AND payout_id IS NULL AND ${stillPending}`)
-        .bind(id, existing.student_id, id),
-    );
-  }
-  statements.push(
-    db
-      .prepare("UPDATE payout_requests SET status = ?, resolved_at = datetime('now'), resolved_by = ? WHERE id = ? AND status = 'pending'")
-      .bind(newStatus, user.id, id),
-  );
+  const statements =
+    body.action === "approve"
+      ? payOutStatements(db, id, existing.student_id, user.id)
+      : [
+          db
+            .prepare("UPDATE payout_requests SET status = 'denied', resolved_at = datetime('now'), resolved_by = ? WHERE id = ? AND status = 'pending'")
+            .bind(user.id, id),
+        ];
   const results = await db.batch(statements);
   if (results[results.length - 1].meta.changes !== 1) return json({ error: "Payout request has already been resolved" }, 409);
 

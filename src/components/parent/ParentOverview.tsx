@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Assignment, PayoutAction } from "../../types";
 import { getSubjectColor, getSubjectLight, getDaysLeftColor } from "../../lib/styles";
-import { fetchPayouts, resolvePayout, type PayoutRequestRow, type RewardSummary } from "../../lib/api";
+import { fetchPayouts, parentPayout, resolvePayout, type PayoutRequestRow, type RewardSummary } from "../../lib/api";
 import { rewardAmountFor } from "../../lib/rewards";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import { daysUntilDate } from "../../lib/dates";
@@ -50,6 +50,11 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
   const [payouts, setPayouts] = useState<PayoutRequestRow[]>([]);
   const [resolving, setResolving] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  // Parent-initiated payout ("Pay out now"): any time, whatever the payout schedule.
+  const [payingOut, setPayingOut] = useState(false);
+  const [payAmount, setPayAmount] = useState("");
+  const [paySaving, setPaySaving] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
   const payoutPending = summary?.payoutPending ?? false;
   const pending = payouts.find(p => p.status === "pending");
 
@@ -68,6 +73,31 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
       console.error("Failed to resolve payout", err);
     } finally {
       setResolving(false);
+    }
+  }
+
+  const balance = summary?.balance ?? 0;
+  const available = summary?.available ?? 0;
+  const payNumber = Number(payAmount);
+  const payValid = payAmount.trim() !== "" && Number.isFinite(payNumber) && payNumber > 0 && payNumber <= balance;
+
+  function openPayOut() {
+    setPayAmount(String(available > 0 ? available : Math.max(0, balance)));
+    setPayError(null);
+    setPayingOut(true);
+  }
+
+  async function handlePayOut() {
+    setPaySaving(true);
+    setPayError(null);
+    try {
+      await parentPayout(Math.round(payNumber * 100) / 100);
+      onChanged();
+      setPayingOut(false);
+    } catch (err) {
+      setPayError(err instanceof Error ? err.message : "Couldn't record the payout");
+    } finally {
+      setPaySaving(false);
     }
   }
 
@@ -96,6 +126,16 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
             <button onClick={() => { setPayoutAction("delay"); setShowPayoutModal(true); }} className="flex-1 bg-yellow-400 text-yellow-900 py-2 rounded-xl text-sm font-bold">⏰ Delay</button>
             <button onClick={() => { setPayoutAction("deny"); setShowPayoutModal(true); }} className="flex-1 bg-red-100 text-red-600 py-2 rounded-xl text-sm font-bold">❌ Deny</button>
           </div>
+        </div>
+      )}
+
+      {summary && !pending && balance > 0 && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-800">{fmt(available)} ready to pay out</p>
+            <p className="text-xs text-gray-400">Balance {fmt(balance)}{summary.holdback > 0 ? ` · ${fmt(summary.holdback)} held back` : ""}</p>
+          </div>
+          <button onClick={openPayOut} className="shrink-0 bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-xl">💸 Pay out now</button>
         </div>
       )}
 
@@ -302,6 +342,38 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
               <button onClick={() => handleResolve("deny")} disabled={resolving} className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold disabled:opacity-40">{resolving ? "Confirming…" : "Confirm Denial"}</button>
             </>}
             <button onClick={() => setShowPayoutModal(false)} className="w-full text-gray-400 text-sm">Cancel</button>
+          </div>
+        </div>
+      )}
+      {payingOut && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="bg-white w-full max-w-sm max-h-[90vh] overflow-y-auto rounded-3xl p-6 space-y-4">
+            <h2 className="text-lg font-bold text-gray-800">💸 Pay out {summary?.studentName ?? "your student"}</h2>
+            <div>
+              <label htmlFor="payout-amount" className="block text-xs font-medium text-gray-500 mb-1">Amount</label>
+              <input id="payout-amount" type="number" inputMode="decimal" min="0" step="0.01" max={balance} value={payAmount}
+                onChange={e => setPayAmount(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-300" />
+              <p className="text-xs text-gray-400 mt-1">
+                {fmt(available)} is available after the holdback. You can pay up to the whole balance ({fmt(balance)}).
+              </p>
+            </div>
+            {payValid && (
+              <div className="bg-green-50 rounded-2xl p-4 text-sm space-y-1">
+                <div className="flex justify-between"><span>Paying out</span><span className="font-bold text-green-600">{fmt(payNumber)}</span></div>
+                <div className="flex justify-between"><span>Balance after</span><span className="font-bold">{fmt(Math.round((balance - payNumber) * 100) / 100)}</span></div>
+              </div>
+            )}
+            <p className="text-sm text-gray-500">
+              This records the payout right away and locks the paid work under Past Grades. It does <span className="font-semibold">not</span> send
+              anything — pay {summary?.studentName ?? "your student"} yourself (Venmo, cash, etc.).
+            </p>
+            {payError && <p className="text-sm text-red-500">{payError}</p>}
+            <button onClick={handlePayOut} disabled={!payValid || paySaving}
+              className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold disabled:opacity-40">
+              {paySaving ? "Recording…" : payValid ? `Pay out ${fmt(payNumber)}` : "Pay out"}
+            </button>
+            <button onClick={() => setPayingOut(false)} disabled={paySaving} className="w-full text-gray-400 text-sm">Cancel</button>
           </div>
         </div>
       )}

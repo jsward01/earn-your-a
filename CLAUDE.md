@@ -283,7 +283,7 @@ Commit `97975d5` ("Wire rewards/payouts to D1, add real branding, add password r
 - **Holdback buffer** (~$20) held back on payout requests to cover upcoming penalties; negative balances carry forward.
 - **Reward type is configurable** (money/screen-time/points/custom), not hardcoded to dollars.
 - Implementation lives in **two places that must agree**: `src/lib/rewards.ts` (`getRewardStatus` — what the UI shows, amounts hardcoded) and `functions/_lib/rewards.ts` (`computeAssignmentReward` — what the ledger records, driven by the family's settings). Makeup-window state is `nextMakeupState` in `functions/_lib/assignments.ts`.
-- **Tests:** `npm test` (Vitest, ~0.2s; not part of the Pages build, so a failing test never blocks a deploy — run it yourself before pushing reward changes). 716 tests (Oct 13) — incl. `functions/_lib/emailAlerts.test.ts`, `functions/_lib/notificationSettings.test.ts`; `src/lib/import/import.test.ts` (grade import parser + matching), `functions/_lib/adjustments.test.ts` (adjustment validation), `functions/_lib/rewards.test.ts` (ledger rules incl. thresholds/boundaries/custom settings, per-type rewards and penalties, holdback math), `functions/_lib/assignments.test.ts` (makeup window), `src/lib/rewards.test.ts` (UI labels), `functions/_lib/rewards.parity.test.ts` (browser vs. ledger must give the same number for every type × grade). The parity test lives under `functions/` on purpose — importing a `functions/` file from `src/` pulls Cloudflare types into the browser build and breaks `tsc -b`. Sanity-checked by mutation (flipping `>=` to `>` fails 7 tests; changing the UI's test reward fails 10).
+- **Tests:** `npm test` (Vitest, ~0.2s; not part of the Pages build, so a failing test never blocks a deploy — run it yourself before pushing reward changes). 728 tests (Oct 15) — incl. `functions/_lib/emailAlerts.test.ts`, `functions/_lib/notificationSettings.test.ts`; `src/lib/import/import.test.ts` (grade import parser + matching), `functions/_lib/adjustments.test.ts` (adjustment validation), `functions/_lib/rewards.test.ts` (ledger rules incl. thresholds/boundaries/custom settings, per-type rewards and penalties, holdback math), `functions/_lib/assignments.test.ts` (makeup window), `src/lib/rewards.test.ts` (UI labels), `functions/_lib/rewards.parity.test.ts` (browser vs. ledger must give the same number for every type × grade). The parity test lives under `functions/` on purpose — importing a `functions/` file from `src/` pulls Cloudflare types into the browser build and breaks `tsc -b`. Sanity-checked by mutation (flipping `>=` to `>` fails 7 tests; changing the UI's test reward fails 10).
 
 ### ⚠️ Known gaps the tests exposed (Sep 2026) — status
 1. ~~Makeup lock-in isn't enforced~~ — **superseded by payout archiving** (see "Grading, corrections & cash-out" above). The lock is now "paid out", not a timer: work stays editable by a parent until a payout settles it, except that items with an **open makeup window are never archived** (so a retake can still reverse the penalty). No date comparison against `makeup_deadline` is needed.
@@ -293,7 +293,7 @@ Commit `97975d5` ("Wire rewards/payouts to D1, add real branding, add password r
 
 ## Immediate Next Step
 
-**Where we left off (end of the Oct 5, 2026 session). Everything below is LIVE on earnyoura.com** (last deploy `8504c17`, asset `index-BikEeRvY.js`); all migrations through `0012` are applied to remote D1; 646 tests pass. Wrangler was re-authenticated Oct 5.
+**Where we left off (end of the Oct 15, 2026 afternoon session). Everything is LIVE on earnyoura.com** (last deploy `ed4271c`, asset `index-rT4WMslk.js`); all migrations through `0015` are applied to remote D1; 728 tests pass. The session-by-session notes below run oldest → newest; START HERE is the current to-do.
 
 **Shipped Oct 5 (details in "Done"):**
 1. **Adjustment entries:** ± Adjust on the Balance page (migration 0010).
@@ -324,9 +324,18 @@ Commit `97975d5` ("Wire rewards/payouts to D1, add real branding, add password r
 - **Both Jonathan and Susana already had email on** (every alert type), so real emails start at the next window with no further setup.
 - **Quiet hours** (commit `2c4bfee`): per person in Alerts → Settings, default **8 PM–6 AM** (Jonathan's ask). Stored in the existing `notification_settings.quiet_start/quiet_end` ("HH:00"; NULL = default, "" = off), so no migration. Inside quiet hours a digest is skipped and a payout email waits until they end. In effect the evening digest now only goes out 6–8 PM. The Alerts card's "Emails haven't started yet" note is replaced with the real send times.
 
-**Oct 15 afternoon (payout attempt):** Jonathan's wife couldn't pay out — the live payout setting is **"Parent Initiated Only" (`payout_schedule = 'manual'`) but there is no parent "start payout" button**; `POST /api/payouts` is student-only. The assignment rate was raised to **$5** (Oct 15, 2:51 PM) but 43 graded assignments are still recorded at $3 (price-at-grading rule); suggested +$86 ± Adjust before paying out ($169 → $255, $235 available). Two old quizzes are priced at the pre-Sep-22 ±$20 (they net to $0 vs. today's ±$10). Parent "Pay out now" built later the same day (see Done); "re-price unpaid work at current rates" not built. Also built: **leave out a class + multi-select delete** (see Done). Both LIVE Oct 15 (`ed4271c`). Not yet seen live while logged in as a parent.
+**Oct 15 afternoon session: payouts, the $5 rate, leaving out classes.** All LIVE (`9c8e769` + `ed4271c`; migration `0015` applied by Jonathan first). Details in Done.
+- **Why the payout was stuck:** the live setting is **"Parent Initiated Only"** (`payout_schedule = 'manual'`), but only students could start a payout. Fixed: parent **💸 Pay out now** on the Overview, under any schedule.
+- **$5 per assignment:** set Oct 15, 2:51 PM. Past work keeps the price it had when graded, so 43 graded assignments are still at $3. Plan: one **+$86 ± Adjust** before paying out (balance $169 → $255; $235 available after the $20 holdback). Two quizzes graded before Sep 22 are at the old ±$20; at today's ±$10 they cancel out, so +$86 is still right. A "re-price unpaid work at current rates" action was offered, not built.
+- **EPIC and Spanish:** Jonathan's wife deleted 36 items one at a time. Built: **leave out a class** (import review chips, saved per student) + **multi-select delete** on the Balance page. Live D1 has no EPIC/Spanish rows left; she still has to tap **EPIC** and **Spanish** on her next import, or they come back as New.
+- The migration must be typed at an **empty** prompt starting with `!`. With leading spaces it's just a chat message and doesn't run; verify with `d1 migrations list --remote`.
 
-**▶ START HERE (Oct 16): confirm the first real emails.** Jonathan stopped for the day around 1 PM Oct 15, before the first evening window, so nothing had been checked yet.
+**▶ START HERE (Oct 16):**
+1. **First real payout:** did the +$86 adjustment and "Pay out now" happen? Check `SELECT * FROM payout_requests` and `SELECT kind, amount, reason FROM reward_transactions WHERE kind = 'adjustment'` (read-only, remote). Then check the archive + lock: paste the Campus list, Review without importing, and paid-out work should show as "Already up to date" (Jonathan asked about this). None of today's features have been seen live while logged in as a parent.
+2. **EPIC/Spanish:** on the next import, confirm both are tapped and show as "Left out"; `SELECT class_name FROM excluded_classes` (remote) should list them.
+3. **Emails** (carried over from the morning, below).
+
+**Emails: confirm the first real ones.** Jonathan stopped the morning session around 1 PM Oct 15, before the first evening window, so nothing had been checked yet.
 1. ~~Ship quiet hours~~: LIVE Oct 15. Site `775344d` (asset `index-DIykGPhY.js`); Worker redeployed by Jonathan (`b1e63094…`).
 2. **First real email:** run `SELECT * FROM email_log` (read-only, remote) to see whether the Oct 15 evening (6–8 PM) and Oct 16 morning (7 AM) digests went out (status `sent`/`failed`, plus a `detail` column). For live runs, watch `npx wrangler tail earn-your-a-alerts` and `SELECT * FROM email_log` (read-only, remote). Check Gmail: inbox, not spam, and the HTML looks OK on a phone.
 3. **Look at the live switch:** Settings → Family → "Allow email alerts" on Susana's card (logged in as parent; also check phone width). Not yet seen in a browser. Also check the new Quiet hours controls on the live site. Chrome screenshots failed on Oct 15; the DOM check passed locally.
@@ -334,9 +343,10 @@ Commit `97975d5` ("Wire rewards/payouts to D1, add real branding, add password r
 
 **Then, in suggested order:**
 1. ~~Real email sending~~ — see START HERE above.
-2. **First real payout:** watch the archive + lock, then paste the Campus list and Review without importing, to confirm paid-out work shows as "Already up to date" (Jonathan asked about this).
+2. ~~First real payout~~ — see START HERE above.
 3. **Before opening to other families:** a per-family daily limit on the AI endpoints (`extract`, `assignment-plan`), since they all use Jonathan's `ANTHROPIC_API_KEY`.
-4. Bonus/streak rules (needs Jonathan's rules), login rate limiting, the "late" rule decision (Campus flags Late; shown as a tag, no money effect yet).
+4. "Re-price unpaid work at current rates" (so a rate change can apply to past work without an adjustment), only if Jonathan wants it.
+5. Bonus/streak rules (needs Jonathan's rules), login rate limiting, the "late" rule decision (Campus flags Late; shown as a tag, no money effect yet).
 
 **Still untested on production with a real AI read:** screenshot upload and a non-Campus paste (both go to `extract` now). Safe to try — reading saves nothing.
 

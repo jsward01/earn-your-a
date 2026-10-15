@@ -316,7 +316,7 @@ Commit `97975d5` ("Wire rewards/payouts to D1, add real branding, add password r
 - **Quiet hours** (commit `2c4bfee`): per person in Alerts → Settings, default **8 PM–6 AM** (Jonathan's ask). Stored in the existing `notification_settings.quiet_start/quiet_end` ("HH:00"; NULL = default, "" = off), so no migration. Inside quiet hours a digest is skipped and a payout email waits until they end. In effect the evening digest now only goes out 6–8 PM. The Alerts card's "Emails haven't started yet" note is replaced with the real send times.
 
 **▶ START HERE:**
-1. **Ship quiet hours:** push `2c4bfee` (site) AND have Jonathan redeploy the Worker via `! cd ~/earn-your-a && npx wrangler deploy -c workers/alerts/wrangler.jsonc`. Both are needed; the Worker is a separate deploy.
+1. ~~Ship quiet hours~~: LIVE Oct 15. Site `775344d` (asset `index-DIykGPhY.js`); Worker redeployed by Jonathan (`b1e63094…`).
 2. **First real email:** after 6 PM Denver time, watch `npx wrangler tail earn-your-a-alerts` and `SELECT * FROM email_log` (read-only, remote). Check Gmail: inbox, not spam, and the HTML looks OK on a phone.
 3. **Look at the live switch:** Settings → Family → "Allow email alerts" on Susana's card (logged in as parent; also check phone width). Not yet seen in a browser. Also check the new Quiet hours controls on the live site. Chrome screenshots failed on Oct 15; the DOM check passed locally.
 4. Susana's address is her school account (`@lpsk12.org`): school mail may filter outside senders, so if her email never arrives, suggest a personal address.

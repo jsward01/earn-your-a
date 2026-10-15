@@ -7,6 +7,8 @@
  * - evening (from 6pm): work due tomorrow
  * - payouts: as soon as the next run sees them (every 15 minutes) — a student's request goes to the parents, an
  *   approval/denial goes to the student.
+ * - quiet hours (each person's own, default 8pm–6am): nothing is sent. A digest that falls inside them is skipped;
+ *   a payout email waits until they end.
  */
 import { formatAmount, type RewardFormat } from "../../src/lib/rewards";
 
@@ -40,6 +42,12 @@ export function digestWindow(hour: number): DigestKind | null {
   if (hour >= MORNING_HOUR && hour < MORNING_HOUR + WINDOW_HOURS) return "morning";
   if (hour >= EVENING_HOUR && hour < EVENING_HOUR + WINDOW_HOURS) return "evening";
   return null;
+}
+
+/** Whether this local hour is inside someone's quiet hours (null = quiet hours off). Wraps past midnight when start > end. */
+export function inQuietHours(hour: number, quiet: { start: number; end: number } | null): boolean {
+  if (!quiet || quiet.start === quiet.end) return false;
+  return quiet.start < quiet.end ? hour >= quiet.start && hour < quiet.end : hour >= quiet.start || hour < quiet.end;
 }
 
 /** Calendar arithmetic on YYYY-MM-DD strings (no time zones involved). */

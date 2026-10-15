@@ -65,6 +65,10 @@ export interface EmailAlertSettings {
   dueToday: boolean;
   makeup: boolean;
   payout: boolean;
+  /** No emails from quietStart until quietEnd (local hours 0–23, wrapping past midnight). Default 8pm–6am. */
+  quietHours: boolean;
+  quietStart: number;
+  quietEnd: number;
   /** Students: false when a parent turned off email alerts for them (Settings → Family). Read-only. */
   allowedByParent?: boolean;
 }

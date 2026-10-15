@@ -11,6 +11,7 @@ import {
   buildDigest,
   buildPayoutEmail,
   digestWindow,
+  inQuietHours,
   localClock,
   RETAKE_DAYS_LEFT,
   type AlertItem,
@@ -18,6 +19,7 @@ import {
   type Recipient,
   type Student,
 } from "../../functions/_lib/emailAlerts";
+import { quietHoursFromRow } from "../../functions/_lib/notificationSettings";
 import { sendEmail } from "../../functions/_lib/resend";
 import type { RewardFormat } from "../../src/lib/rewards";
 
@@ -36,6 +38,8 @@ interface RecipientRow {
   due_today: number;
   makeup: number;
   payout: number;
+  quiet_start: string | null;
+  quiet_end: string | null;
   timezone: string;
 }
 
@@ -55,7 +59,7 @@ export default {
 export async function runAlerts(env: Env, now: Date): Promise<void> {
   // Everyone with email on and an address. A student's own alerts also need their parents' "Allow email alerts".
   const { results: rows } = await env.DB.prepare(
-    `SELECT u.id, u.family_id, u.role, u.name, ns.email_addr, ns.due_1day, ns.due_today, ns.makeup, ns.payout, f.timezone
+    `SELECT u.id, u.family_id, u.role, u.name, ns.email_addr, ns.due_1day, ns.due_today, ns.makeup, ns.payout, ns.quiet_start, ns.quiet_end, f.timezone
      FROM notification_settings ns
      JOIN users u ON u.id = ns.user_id
      JOIN families f ON f.id = u.family_id
@@ -77,8 +81,11 @@ export async function runAlerts(env: Env, now: Date): Promise<void> {
   }
 }
 
-async function runFamily(env: Env, now: Date, familyId: string, recipients: RecipientRow[]): Promise<void> {
-  const { date: today, hour } = localClock(now, recipients[0].timezone);
+async function runFamily(env: Env, now: Date, familyId: string, allRecipients: RecipientRow[]): Promise<void> {
+  const { date: today, hour } = localClock(now, allRecipients[0].timezone);
+  // Inside someone's quiet hours nothing goes to them this run: a digest is skipped, a payout email waits.
+  const recipients = allRecipients.filter(r => !inQuietHours(hour, quietHoursFromRow(r)));
+  if (recipients.length === 0) return;
   const { results: studentRows } = await env.DB.prepare(
     "SELECT id, name FROM users WHERE family_id = ? AND role = 'student' ORDER BY created_at, id",
   )

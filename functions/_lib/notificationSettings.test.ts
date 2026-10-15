@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { MAX_EMAIL_LENGTH, defaultEmailAlertSettings, fromRow, isEmailAddress, validateEmailAlertSettings } from "./notificationSettings";
+import {
+  MAX_EMAIL_LENGTH,
+  defaultEmailAlertSettings,
+  fromRow,
+  isEmailAddress,
+  quietHoursFromRow,
+  quietHoursToRow,
+  validateEmailAlertSettings,
+} from "./notificationSettings";
 
-const valid = { email: true, emailAddr: "parent@example.com", due1day: true, dueToday: false, makeup: true, payout: false };
+const valid = {
+  email: true, emailAddr: "parent@example.com", due1day: true, dueToday: false, makeup: true, payout: false,
+  quietHours: true, quietStart: 21, quietEnd: 7,
+};
+const DEFAULT_QUIET = { quietHours: true, quietStart: 20, quietEnd: 6 };
 
 describe("isEmailAddress", () => {
   it("accepts ordinary addresses", () => {
@@ -22,7 +34,7 @@ describe("isEmailAddress", () => {
 describe("defaultEmailAlertSettings", () => {
   it("starts with email off and every alert type on", () => {
     expect(defaultEmailAlertSettings("parent@example.com")).toEqual({
-      email: false, emailAddr: "parent@example.com", due1day: true, dueToday: true, makeup: true, payout: true,
+      email: false, emailAddr: "parent@example.com", due1day: true, dueToday: true, makeup: true, payout: true, ...DEFAULT_QUIET,
     });
   });
 
@@ -33,9 +45,31 @@ describe("defaultEmailAlertSettings", () => {
 
 describe("fromRow", () => {
   it("maps 0/1 columns to booleans and a null address to blank", () => {
-    expect(fromRow({ email: 1, email_addr: null, due_1day: 0, due_today: 1, makeup: 0, payout: 1 })).toEqual({
-      email: true, emailAddr: "", due1day: false, dueToday: true, makeup: false, payout: true,
+    expect(fromRow({ email: 1, email_addr: null, due_1day: 0, due_today: 1, makeup: 0, payout: 1, quiet_start: null, quiet_end: null })).toEqual({
+      email: true, emailAddr: "", due1day: false, dueToday: true, makeup: false, payout: true, ...DEFAULT_QUIET,
     });
+  });
+
+  it("reads saved quiet hours, and empty strings as off", () => {
+    const base = { email: 1, email_addr: null, due_1day: 1, due_today: 1, makeup: 1, payout: 1 };
+    expect(fromRow({ ...base, quiet_start: "22:00", quiet_end: "05:00" })).toMatchObject({ quietHours: true, quietStart: 22, quietEnd: 5 });
+    expect(fromRow({ ...base, quiet_start: "", quiet_end: "" })).toMatchObject({ quietHours: false });
+  });
+});
+
+describe("quiet hours storage", () => {
+  it("defaults to 8pm–6am when never saved or unreadable", () => {
+    expect(quietHoursFromRow({ quiet_start: null, quiet_end: null })).toEqual({ start: 20, end: 6 });
+    expect(quietHoursFromRow({ quiet_start: "9pm", quiet_end: "06:00" })).toEqual({ start: 20, end: 6 });
+    expect(quietHoursFromRow({ quiet_start: "25:00", quiet_end: "06:00" })).toEqual({ start: 20, end: 6 });
+    expect(quietHoursFromRow({ quiet_start: "06:00", quiet_end: "06:00" })).toEqual({ start: 20, end: 6 });
+  });
+
+  it("round-trips through the row format", () => {
+    expect(quietHoursToRow({ quietHours: true, quietStart: 21, quietEnd: 7 })).toEqual({ quiet_start: "21:00", quiet_end: "07:00" });
+    expect(quietHoursFromRow({ quiet_start: "21:00", quiet_end: "07:00" })).toEqual({ start: 21, end: 7 });
+    expect(quietHoursToRow({ quietHours: false, quietStart: 20, quietEnd: 6 })).toEqual({ quiet_start: "", quiet_end: "" });
+    expect(quietHoursFromRow({ quiet_start: "", quiet_end: "" })).toBeNull();
   });
 });
 
@@ -67,6 +101,21 @@ describe("validateEmailAlertSettings", () => {
     for (const key of ["email", "due1day", "dueToday", "makeup", "payout"]) {
       expect(validateEmailAlertSettings({ ...valid, [key]: undefined })).toHaveProperty("error");
       expect(validateEmailAlertSettings({ ...valid, [key]: 1 })).toHaveProperty("error");
+    }
+  });
+
+  it("defaults quiet hours when a request doesn't send them", () => {
+    const { quietHours: _q, quietStart: _s, quietEnd: _e, ...old } = valid;
+    expect(validateEmailAlertSettings(old)).toEqual({ ...old, ...DEFAULT_QUIET });
+  });
+
+  it("accepts quiet hours off without hours", () => {
+    expect(validateEmailAlertSettings({ ...valid, quietHours: false, quietStart: undefined, quietEnd: undefined })).toMatchObject({ quietHours: false });
+  });
+
+  it("rejects bad quiet hours", () => {
+    for (const bad of [{ quietStart: 24 }, { quietEnd: -1 }, { quietStart: 7.5 }, { quietEnd: "6" }, { quietStart: 7, quietEnd: 7 }, { quietHours: "yes" }]) {
+      expect(validateEmailAlertSettings({ ...valid, ...bad })).toHaveProperty("error");
     }
   });
 

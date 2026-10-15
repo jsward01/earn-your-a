@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, buildDigest, buildPayoutEmail, digestWindow, formatDate, localClock, type AlertItem, type Recipient } from "./emailAlerts";
+import { addDays, buildDigest, buildPayoutEmail, digestWindow, formatDate, inQuietHours, localClock, type AlertItem, type Recipient } from "./emailAlerts";
 
 const TODAY = "2026-10-14";
 const sam: Recipient = { id: "s1", role: "student", name: "Sam", dueToday: true, due1day: true, makeup: true };
@@ -29,6 +29,13 @@ describe("localClock / digestWindow", () => {
     expect(digestWindow(21)).toBe("evening");
     expect(digestWindow(22)).toBeNull();
     expect(digestWindow(0)).toBeNull();
+  });
+  it("keeps quiet hours, wrapping past midnight", () => {
+    const night = { start: 20, end: 6 };
+    expect([19, 20, 23, 0, 4, 5, 6, 18].map(h => inQuietHours(h, night))).toEqual([false, true, true, true, true, true, false, false]);
+    const nap = { start: 13, end: 15 };
+    expect([12, 13, 14, 15].map(h => inQuietHours(h, nap))).toEqual([false, true, true, false]);
+    expect(inQuietHours(3, null)).toBe(false);
   });
   it("adds calendar days across month ends", () => {
     expect(addDays("2026-10-31", 1)).toBe("2026-11-01");

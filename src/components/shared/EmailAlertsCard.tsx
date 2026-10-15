@@ -23,6 +23,14 @@ function alertOptions(isParent: boolean, studentName: string): { key: AlertKey; 
   ];
 }
 
+function hourLabel(hour: number): string {
+  if (hour === 0) return "12 AM (midnight)";
+  if (hour === 12) return "12 PM (noon)";
+  return hour < 12 ? `${hour} AM` : `${hour - 12} PM`;
+}
+
+const HOURS = Array.from({ length: 24 }, (_, h) => h);
+
 function Switch({ on, label, accent, onChange }: { on: boolean; label: string; accent: string; onChange: (on: boolean) => void }) {
   return (
     <button role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)}
@@ -32,7 +40,7 @@ function Switch({ on, label, accent, onChange }: { on: boolean; label: string; a
   );
 }
 
-/** Each user's own email alert choices. Saved now; sending is built separately. */
+/** Each user's own email alert choices, sent by the alerts Worker (workers/alerts). */
 export function EmailAlertsCard({ isParent, studentName }: EmailAlertsCardProps) {
   const [settings, setSettings] = useState<EmailAlertSettings | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -111,14 +119,41 @@ export function EmailAlertsCard({ isParent, studentName }: EmailAlertsCardProps)
         ))}
       </div>
 
+      <div className={`space-y-3 ${settings.email ? "" : "opacity-50"}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm text-gray-700">Quiet hours</p>
+            <p className="text-xs text-gray-400">No emails during these hours. Payout emails wait until they end.</p>
+          </div>
+          <Switch on={settings.quietHours} label="Quiet hours" accent={accent} onChange={quietHours => update({ quietHours })} />
+        </div>
+        {settings.quietHours && (
+          <div className="grid grid-cols-2 gap-3">
+            {([["quietStart", "From"], ["quietEnd", "Until"]] as const).map(([key, label]) => (
+              <div key={key}>
+                <label htmlFor={`alert-${key}`} className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
+                <select
+                  id={`alert-${key}`}
+                  value={settings[key]}
+                  onChange={e => update({ [key]: Number(e.target.value) })}
+                  className={`w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 ${ring}`}
+                >
+                  {HOURS.map(h => <option key={h} value={h}>{hourLabel(h)}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {error && <p className="text-sm text-red-500">{error}</p>}
       <button onClick={handleSave} disabled={saving}
         className={`w-full ${accent} text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-40`}>
         {saving ? "Saving…" : saved ? "✓ Saved!" : "Save"}
       </button>
       <p className="text-xs text-gray-400">
-        Emails haven't started yet. Your choices are saved now, and alerts begin once email sending is switched on.
-        Alerts always show on this screen too. Text messages are coming later.
+        "Due today" and retake emails go out around 7 AM, "Due tomorrow" around 6 PM, and payout emails within
+        about 15 minutes. Alerts always show on this screen too. Text messages are coming later.
       </p>
     </div>
   );

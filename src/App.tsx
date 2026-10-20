@@ -233,7 +233,7 @@ export default function App() {
             onAdd={() => setEditor({ assignment: null })}
           />
         )}
-        {isParent && view === "settings" && <ParentSettings user={user} onStudentsChanged={() => { loadStudents(); refreshSummary(); }} onSettingsSaved={setRewardSettings} />}
+        {isParent && view === "settings" && <ParentSettings user={user} onStudentsChanged={() => { loadStudents(); refreshSummary(); }} onSettingsSaved={setRewardSettings} onRewardsRecalculated={() => { reloadAssignments(); refreshSummary(); }} />}
       </div>
 
       <BottomNav navs={navs} view={view} isParent={isParent} payoutPending={payoutPending} onSelect={setView} />

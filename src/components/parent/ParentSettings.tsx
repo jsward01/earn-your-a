@@ -15,6 +15,8 @@ interface ParentSettingsProps {
   onStudentsChanged: () => void;
   /** Called with the saved settings so every screen switches to the new amounts immediately. */
   onSettingsSaved: (settings: RewardSettings) => void;
+  /** Called after past grades were recalculated, so the balance and the work's amounts reload everywhere. */
+  onRewardsRecalculated: () => void;
 }
 
 type AmountKey = "assignmentReward" | "quizReward" | "testReward" | "assignmentPenalty" | "quizPenalty" | "testPenalty";
@@ -99,7 +101,7 @@ const PAYOUT_SCHEDULES: { val: RewardSettings["payoutSchedule"]; label: string }
   { val: "manual", label: "Parent Initiated Only" },
 ];
 
-export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: ParentSettingsProps) {
+export function ParentSettings({ user, onStudentsChanged, onSettingsSaved, onRewardsRecalculated }: ParentSettingsProps) {
   const [tab, setTab] = useState<SettingsTab>("rewards");
   const [settings, setSettings] = useState<RewardSettings>(DEFAULT_REWARD_SETTINGS);
   // What the server has, to tell whether a save changed any amounts.
@@ -479,7 +481,7 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
       {askReprice && (
         <RepriceModal
           onClose={() => setAskReprice(false)}
-          onApplied={() => setRepriceNote("✓ Recalculated. The new amounts show on the Balance page.")}
+          onApplied={() => { setRepriceNote("✓ Recalculated. The new amounts show on the Balance page."); onRewardsRecalculated(); }}
         />
       )}
 

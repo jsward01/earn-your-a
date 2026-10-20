@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planReprice, summarizeReprice, type RepriceAssignment } from "./reprice";
+import { parseFromDate, planReprice, summarizeReprice, type RepriceAssignment } from "./reprice";
 import type { FullRewardSettings } from "./rewards";
 
 const RATES: FullRewardSettings = {
@@ -87,5 +87,13 @@ describe("summarizeReprice", () => {
       { type: "quiz", before: 20, after: 10, count: 1, delta: -10 },
     ]);
     expect(s2).toMatchObject({ studentId: "s2", delta: 2 });
+  });
+});
+
+describe("parseFromDate", () => {
+  it.each([undefined, null, ""])("%s means all work", v => expect(parseFromDate(v)).toEqual({ from: null }));
+  it("accepts a real day", () => expect(parseFromDate("2026-10-12")).toEqual({ from: "2026-10-12" }));
+  it.each(["2026-02-30", "2026-13-01", "10/12/2026", "2026-10-12T00:00", 20261012])("rejects %s", v => {
+    expect(parseFromDate(v)).toHaveProperty("error");
   });
 });

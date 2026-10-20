@@ -1,4 +1,5 @@
 import { computeAssignmentReward, type FullRewardSettings } from "./rewards";
+import { isIsoDate } from "./assignmentEdits";
 
 /** One assignment as the recalculation sees it: its current state plus what the ledger recorded for it. */
 export interface RepriceAssignment {
@@ -91,15 +92,28 @@ export function summarizeReprice(changes: RepriceChange[]): StudentRepriceSummar
 
 export const CATCH_UP_KIND = "reprice";
 
-/** Every assignment in the family with its recorded ledger amount. */
-export async function loadRepriceAssignments(db: D1Database, familyId: string): Promise<RepriceAssignment[]> {
+/**
+ * The optional "recalculate work due on or after" date: absent = all work; otherwise a real calendar day
+ * (isIsoDate alone would accept 2026-02-30).
+ */
+export function parseFromDate(value: unknown): { from: string | null } | { error: string } {
+  if (value === undefined || value === null || value === "") return { from: null };
+  const ms = typeof value === "string" && isIsoDate(value) ? Date.parse(`${value}T00:00:00Z`) : NaN;
+  if (typeof value !== "string" || Number.isNaN(ms) || new Date(ms).toISOString().slice(0, 10) !== value) {
+    return { error: "from must be a real date, YYYY-MM-DD" };
+  }
+  return { from: value };
+}
+
+/** The family's assignments (only those due on or after `from`, when given) with their recorded ledger amounts. */
+export async function loadRepriceAssignments(db: D1Database, familyId: string, from: string | null): Promise<RepriceAssignment[]> {
   const { results } = await db
     .prepare(
       `SELECT a.id, a.student_id, a.title, a.type, a.status, a.grade, a.history_only, a.payout_id,
               (SELECT SUM(t.amount) FROM reward_transactions t WHERE t.assignment_id = a.id) AS recorded
-       FROM assignments a WHERE a.family_id = ?`,
+       FROM assignments a WHERE a.family_id = ? AND (? IS NULL OR a.due_date >= ?)`,
     )
-    .bind(familyId)
+    .bind(familyId, from, from)
     .all<{
       id: string; student_id: string; title: string; type: RepriceAssignment["type"]; status: RepriceAssignment["status"];
       grade: number | null; history_only: number; payout_id: string | null; recorded: number | null;

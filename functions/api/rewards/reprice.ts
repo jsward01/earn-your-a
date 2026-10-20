@@ -1,19 +1,20 @@
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
 import { getFullRewardSettings } from "../../_lib/rewards";
-import { loadRepriceAssignments, planReprice, repriceStatements, summarizeReprice } from "../../_lib/reprice";
+import { loadRepriceAssignments, parseFromDate, planReprice, repriceStatements, summarizeReprice } from "../../_lib/reprice";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
 }
 
 /**
- * What "Recalculate all graded work at today's rates" would do, per student, plus each balance before and after.
- * The same numbers are computed again on POST, so the pop-up can never apply something other than what it read.
+ * What recalculating graded work at today's rates would do (all work, or only work due on or after `from`), per
+ * student, plus each balance before and after. The same numbers are computed again on POST, so the pop-up can never
+ * apply something other than what it read.
  */
-async function preview(db: D1Database, familyId: string) {
+async function preview(db: D1Database, familyId: string, from: string | null) {
   const settings = await getFullRewardSettings(db, familyId);
-  const changes = planReprice(await loadRepriceAssignments(db, familyId), settings);
+  const changes = planReprice(await loadRepriceAssignments(db, familyId, from), settings);
   const { results: students } = await db
     .prepare(
       `SELECT u.id, u.name, (SELECT COALESCE(SUM(t.amount), 0) FROM reward_transactions t WHERE t.student_id = u.id) AS balance
@@ -30,28 +31,42 @@ async function preview(db: D1Database, familyId: string) {
   return { changes, students: perStudent };
 }
 
-/** Parent-only preview: nothing is written. An empty `students` list means everything is already at today's rates. */
+/**
+ * Parent-only preview (`?from=YYYY-MM-DD` optional): nothing is written. An empty `students` list means that work is
+ * already at today's rates.
+ */
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const user = await getSessionUser(context.env.DB, context.request);
   if (!user) return json({ error: "Not authenticated" }, 401);
   if (user.role !== "parent") return json({ error: "Only a parent can recalculate rewards" }, 403);
 
-  const { students } = await preview(context.env.DB, user.familyId);
+  const parsed = parseFromDate(new URL(context.request.url).searchParams.get("from"));
+  if ("error" in parsed) return json({ error: parsed.error }, 400);
+  const { students } = await preview(context.env.DB, user.familyId, parsed.from);
   return json({ students }, 200);
 };
 
 /**
- * Parent-only: re-price all graded work at today's rates, in one transaction. Unpaid work is re-priced in place;
- * paid-out work keeps its payout and gets a catch-up entry for the difference (which may be negative after a rate
- * cut — the pop-up warns first). Returns what was applied.
+ * Parent-only: re-price graded work at today's rates (body `{from}` optional: only work due on or after it), in one
+ * transaction. Unpaid work is re-priced in place; paid-out work keeps its payout and gets a catch-up entry for the
+ * difference (which may be negative after a rate cut — the pop-up warns first). Returns what was applied.
  */
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const user = await getSessionUser(context.env.DB, context.request);
   if (!user) return json({ error: "Not authenticated" }, 401);
   if (user.role !== "parent") return json({ error: "Only a parent can recalculate rewards" }, 403);
 
+  let body: { from?: unknown } = {};
+  try {
+    body = await context.request.json();
+  } catch {
+    // No body = all work.
+  }
+  const parsed = parseFromDate(body.from);
+  if ("error" in parsed) return json({ error: parsed.error }, 400);
+
   const db = context.env.DB;
-  const { changes, students } = await preview(db, user.familyId);
+  const { changes, students } = await preview(db, user.familyId, parsed.from);
   if (changes.length > 0) {
     const now = await db.prepare("SELECT datetime('now') AS now").first<{ now: string }>();
     await db.batch(repriceStatements(db, changes, { familyId: user.familyId, actorId: user.id, createdAt: now!.now }));

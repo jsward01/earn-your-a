@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AuthUser, RewardSettings } from "../../types";
-import { addAccount, fetchFamilyAccounts, fetchRepricePreview, fetchRewardSettings, resetUserPassword, saveRewardSettings, setRewardsStart, setStudentEmailAlerts, type FamilyAccount, type PasswordResetResult, type RepricePreview } from "../../lib/api";
+import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, setRewardsStart, setStudentEmailAlerts, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
 import { formatDay } from "../../lib/dates";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
 import { AppearanceCard } from "../shared/AppearanceCard";
@@ -31,9 +31,8 @@ const PENALTY_FIELDS: { label: string; key: AmountKey }[] = [
   { label: "Test / exam", key: "testPenalty" },
 ];
 
-/** The settings that decide what graded work is worth: changing any of them offers to recalculate past grades. */
-const PRICING_KEYS: (keyof RewardSettings)[] = [...REWARD_FIELDS, ...PENALTY_FIELDS].map(f => f.key as keyof RewardSettings).concat(["passingThreshold", "penalizeMissing"]);
-const pricingChanged = (a: RewardSettings, b: RewardSettings) => PRICING_KEYS.some(k => a[k] !== b[k]);
+/** Saving a change to any reward or penalty amount asks when the new amounts should start. */
+const amountsChanged = (a: RewardSettings, b: RewardSettings) => [...REWARD_FIELDS, ...PENALTY_FIELDS].some(f => a[f.key] !== b[f.key]);
 
 type SettingsTab = "rewards" | "payouts" | "family" | "account";
 const TABS: { val: SettingsTab; icon: string; label: string }[] = [
@@ -105,9 +104,8 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
   const [settings, setSettings] = useState<RewardSettings>(DEFAULT_REWARD_SETTINGS);
   // What the server has, to tell whether a save changed any amounts.
   const [savedSettings, setSavedSettings] = useState<RewardSettings>(DEFAULT_REWARD_SETTINGS);
-  const [reprice, setReprice] = useState<{ preview: RepricePreview; afterSave: boolean } | null>(null);
+  const [askReprice, setAskReprice] = useState(false);
   const [repriceNote, setRepriceNote] = useState<string | null>(null);
-  const [checkingReprice, setCheckingReprice] = useState(false);
   const [accounts, setAccounts] = useState<FamilyAccount[]>([]);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [editingStart, setEditingStart] = useState<string | null>(null);
@@ -202,34 +200,16 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
     setSaveError(null);
     try {
       const result = await saveRewardSettings(settings);
-      const amountsChanged = pricingChanged(savedSettings, result);
       setSettings(result);
       setSavedSettings(result);
       onSettingsSaved(result);
       setSaved(true);
-      if (amountsChanged) {
-        // The save already worked; if this check fails, the Recalculate button below still offers it.
-        const preview = await fetchRepricePreview().catch(() => null);
-        if (preview && preview.students.length > 0) setReprice({ preview, afterSave: true });
-      }
+      setRepriceNote(null);
+      if (amountsChanged(savedSettings, result)) setAskReprice(true);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Failed to save settings");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleCheckReprice() {
-    setCheckingReprice(true);
-    setRepriceNote(null);
-    try {
-      const preview = await fetchRepricePreview();
-      if (preview.students.length > 0) setReprice({ preview, afterSave: false });
-      else setRepriceNote("All graded work is already at today's amounts.");
-    } catch (e) {
-      setRepriceNote(e instanceof Error ? e.message : "Couldn't check graded work");
-    } finally {
-      setCheckingReprice(false);
     }
   }
 
@@ -325,19 +305,7 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
           <SwitchRow label="Penalize missing work"
             hint={settings.penalizeMissing ? "Missing work costs the same as a failing grade of its type." : "Off: missing work earns nothing but costs nothing."}
             on={settings.penalizeMissing} onChange={on => update("penalizeMissing", on)} />
-          {settings.penalizeMissing && <p className="text-xs text-gray-400">Applies to work marked missing from now on; anything already marked missing is only charged if you recalculate graded work.</p>}
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-          <div>
-            <p className="text-xs text-gray-400 font-medium">PAST GRADES</p>
-            <p className="text-xs text-gray-400 mt-1">Graded work keeps the amount it earned when it was graded. Recalculate to bring it up to today's amounts (you'll see the effect before anything changes).</p>
-          </div>
-          <button onClick={handleCheckReprice} disabled={checkingReprice}
-            className="w-full border border-indigo-200 text-indigo-700 py-2.5 rounded-xl font-semibold text-sm disabled:opacity-40">
-            {checkingReprice ? "Checking…" : "Recalculate graded work…"}
-          </button>
-          {repriceNote && <p className="text-xs text-gray-500">{repriceNote}</p>}
+          {settings.penalizeMissing && <p className="text-xs text-gray-400">Applies to work marked missing from now on; anything already marked missing isn't charged after the fact.</p>}
         </div>
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
@@ -497,6 +465,7 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
       {showSave && (
         <div className="sticky bottom-2 z-10 space-y-2">
           {saveError && <p className="text-sm text-red-500 text-center bg-white rounded-xl py-1 shadow">{saveError}</p>}
+          {repriceNote && <p className="text-sm text-green-700 text-center bg-white rounded-xl py-1 shadow">{repriceNote}</p>}
           <button
             onClick={handleSave}
             disabled={saving}
@@ -507,11 +476,9 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved }: Par
         </div>
       )}
 
-      {reprice && (
+      {askReprice && (
         <RepriceModal
-          preview={reprice.preview}
-          afterSave={reprice.afterSave}
-          onClose={() => setReprice(null)}
+          onClose={() => setAskReprice(false)}
           onApplied={() => setRepriceNote("✓ Recalculated. The new amounts show on the Balance page.")}
         />
       )}

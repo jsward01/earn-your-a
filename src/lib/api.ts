@@ -266,20 +266,24 @@ export interface RepriceStudent {
   balanceAfter: number;
 }
 
-/** Only students whose graded work would change; empty = everything is already at today's rates. */
+/** Only students whose graded work would change; empty = that work is already at today's rates. */
 export interface RepricePreview {
   students: RepriceStudent[];
 }
 
-/** Parent-only: what recalculating all graded work at today's rates would do. Writes nothing. */
-export async function fetchRepricePreview(): Promise<RepricePreview> {
-  const res = await fetch("/api/rewards/reprice");
+/** Parent-only: what recalculating graded work due on or after `from` at today's rates would do. Writes nothing. */
+export async function fetchRepricePreview(from: string): Promise<RepricePreview> {
+  const res = await fetch(`/api/rewards/reprice?from=${encodeURIComponent(from)}`);
   return (await parseJsonOrThrow(res)) as RepricePreview;
 }
 
-/** Parent-only: recalculate all graded work at today's rates (every student in the family). */
-export async function applyReprice(): Promise<RepricePreview> {
-  const res = await fetch("/api/rewards/reprice", { method: "POST" });
+/** Parent-only: recalculate graded work due on or after `from` at today's rates (every student in the family). */
+export async function applyReprice(from: string): Promise<RepricePreview> {
+  const res = await fetch("/api/rewards/reprice", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ from }),
+  });
   return (await parseJsonOrThrow(res)) as RepricePreview;
 }
 

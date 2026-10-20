@@ -341,7 +341,7 @@ Commit `97975d5` ("Wire rewards/payouts to D1, add real branding, add password r
 **Oct 19 session:** checked the first real payout in live D1: **paid Oct 16, 12:44 PM, $149 with $20 held back** (balance $169 → $20). **The +$86 adjustment was NOT added** (no `kind = 'adjustment'` rows), so Susana is still owed $86 for her 43 assignments graded at $3. Jonathan chose to apply it with the new **Recalculate graded work** feature (built this session, see Done) instead of ± Adjust. Also added the progress line graphs idea (#6 below).
 
 **▶ START HERE (Oct 19):**
-1. ~~Susana's +$86~~: **done Oct 19 evening** with the first version's button: 45 `kind = 'reprice'` rows summing +$86 (43 assignments +$2, the two old quizzes −$10/+$10), then a parent payout of **$86** (balance back to $20). Redesign pushed after (`63a0134`). **Next: see the new pop-up live** (change an amount → Save → "From a date"), including at phone width; cancel with Starting now / ✕ if just looking.
+1. ~~Susana's +$86~~: **done Oct 19 evening** with the first version's button: 45 `kind = 'reprice'` rows summing +$86 (43 assignments +$2, the two old quizzes −$10/+$10), then a parent payout of **$86** (balance back to $20). Redesign pushed after (`63a0134`). Jonathan confirmed the new pop-up works live; the balance first needed a page refresh, fixed in `d1f7715` (Settings now calls `onRewardsRecalculated` → `reloadAssignments` + `refreshSummary`), confirmed live.
 2. Then the remaining Oct 16 items below (archive/lock check on a Campus paste, EPIC/Spanish chips, emails).
 
 **Oct 16 checklist (carried over):**

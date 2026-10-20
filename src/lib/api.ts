@@ -255,6 +255,34 @@ export async function saveRewardSettings(settings: RewardSettings): Promise<Rewa
   return (await parseJsonOrThrow(res)) as RewardSettings;
 }
 
+export interface RepriceStudent {
+  studentId: string;
+  name: string;
+  unpaid: { count: number; delta: number };
+  paid: { count: number; delta: number };
+  delta: number;
+  groups: { type: "assignment" | "quiz" | "test"; before: number; after: number; count: number; delta: number }[];
+  balanceBefore: number;
+  balanceAfter: number;
+}
+
+/** Only students whose graded work would change; empty = everything is already at today's rates. */
+export interface RepricePreview {
+  students: RepriceStudent[];
+}
+
+/** Parent-only: what recalculating all graded work at today's rates would do. Writes nothing. */
+export async function fetchRepricePreview(): Promise<RepricePreview> {
+  const res = await fetch("/api/rewards/reprice");
+  return (await parseJsonOrThrow(res)) as RepricePreview;
+}
+
+/** Parent-only: recalculate all graded work at today's rates (every student in the family). */
+export async function applyReprice(): Promise<RepricePreview> {
+  const res = await fetch("/api/rewards/reprice", { method: "POST" });
+  return (await parseJsonOrThrow(res)) as RepricePreview;
+}
+
 export interface FamilyAccount {
   id: string;
   name: string;

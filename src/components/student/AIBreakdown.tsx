@@ -29,8 +29,9 @@ export function AIBreakdown() {
       setPlan(parsed);
       setCheckedSteps({});
       setStep("plan");
-    } catch {
-      setError("Couldn't generate plan. Please try again.");
+    } catch (err) {
+      // The server's message says what went wrong (e.g. the family's daily limit), so show it.
+      setError(err instanceof Error ? err.message : "Couldn't generate plan. Please try again.");
     }
     setLoading(false);
   }

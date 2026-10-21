@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
 import { validateImages } from "../../_lib/images";
+import { aiLimitMessage, claimAiUse } from "../../_lib/aiUsage";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -73,6 +74,14 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     { type: "text", text: PROMPT(today) + (text ? `\n\n<pasted>\n${text}\n</pasted>` : "") },
   ];
 
+  const claim = await claimAiUse(context.env.DB, user.familyId, "extract");
+  if (!claim.ok) return json({ error: aiLimitMessage("extract", claim.limit) }, 429);
+  // Anything but a usable list hands the use back, so a failed read doesn't count against the family.
+  const fail = async (error: string, status: number) => {
+    await claim.release();
+    return json({ error }, status);
+  };
+
   const client = new Anthropic({ apiKey: context.env.ANTHROPIC_API_KEY });
   let response;
   try {
@@ -89,19 +98,19 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       })
       .finalMessage();
   } catch (err) {
-    if (err instanceof Anthropic.RateLimitError) return json({ error: "Too many requests right now — try again in a minute" }, 429);
+    if (err instanceof Anthropic.RateLimitError) return fail("Too many requests right now — try again in a minute", 429);
     if (err instanceof Anthropic.BadRequestError) {
       console.error("Grade extract rejected", err.message);
-      return json({ error: "That couldn't be read — try less text or fewer/smaller screenshots" }, 400);
+      return fail("That couldn't be read — try less text or fewer/smaller screenshots", 400);
     }
     console.error("Grade extract failed", err);
-    return json({ error: "Couldn't read that. Please try again." }, 502);
+    return fail("Couldn't read that. Please try again.", 502);
   }
 
-  if (response.stop_reason === "refusal") return json({ error: "That couldn't be read. Try pasting just the assignments list." }, 502);
-  if (response.stop_reason === "max_tokens") return json({ error: "That list is too long to read at once — paste one term or a few classes at a time" }, 400);
+  if (response.stop_reason === "refusal") return fail("That couldn't be read. Try pasting just the assignments list.", 502);
+  if (response.stop_reason === "max_tokens") return fail("That list is too long to read at once — paste one term or a few classes at a time", 400);
   const parsed = response.parsed_output;
-  if (!parsed) return json({ error: "Couldn't read that. Please try again." }, 502);
+  if (!parsed) return fail("Couldn't read that. Please try again.", 502);
 
   return json({ items: parsed.items }, 200);
 };

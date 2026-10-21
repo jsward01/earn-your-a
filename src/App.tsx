@@ -197,8 +197,10 @@ export default function App() {
       />
 
       {/* Keyed by student so switching remounts (and so refetches) every student-scoped view.
-          Settings isn't student-scoped, so it keeps its state (e.g. a just-created temp password). */}
-      <div key={view === "settings" ? "settings" : selectedStudentId ?? "none"} className="flex-1 min-h-0 overflow-y-auto pb-24">
+          Settings isn't student-scoped, so it keeps its state (e.g. a just-created temp password).
+          `relative` keeps absolutely positioned children (e.g. `sr-only` labels) inside this scroller;
+          without it they're placed against <body> and stretch the page, giving a second scrollbar. */}
+      <div key={view === "settings" ? "settings" : selectedStudentId ?? "none"} className="relative flex-1 min-h-0 overflow-y-auto pb-24">
         {isParent && studentsLoaded && students.length === 0 && view !== "settings" && (
           <div className="p-6 text-center text-sm text-gray-500">
             No students yet. Add one in Settings → Account Access.

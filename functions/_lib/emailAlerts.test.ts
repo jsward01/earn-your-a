@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, buildDigest, buildPayoutEmail, digestWindow, formatDate, inQuietHours, localClock, type AlertItem, type Recipient } from "./emailAlerts";
+import { addDays, buildDigest, buildPayoutEmail, digestWindow, formatDate, inQuietHours, localClock, testEmail, type AlertItem, type Recipient } from "./emailAlerts";
 
 const TODAY = "2026-10-14";
 const sam: Recipient = { id: "s1", role: "student", name: "Sam", dueToday: true, due1day: true, makeup: true };
@@ -112,5 +112,19 @@ describe("buildPayoutEmail", () => {
     expect(buildPayoutEmail(sam, { studentName: "Sam", amount: 30, status: "denied" }, { rewardType: "screen", customUnit: "" }).subject).toBe(
       "Your payout request of 30 min was denied",
     );
+  });
+});
+
+describe("testEmail", () => {
+  it("greets by first name in the alert layout, with a plain-text copy", () => {
+    const e = testEmail("Jonathan");
+    expect(e.subject).toBe("Earn Your A: test email");
+    expect(e.text).toContain("Hi Jonathan");
+    expect(e.text).toContain("Around 6 PM: work due tomorrow");
+    expect(e.html).toContain("Open Earn Your A");
+  });
+
+  it("escapes the name in the HTML", () => {
+    expect(testEmail("<b>").html).not.toContain("<b>,");
   });
 });

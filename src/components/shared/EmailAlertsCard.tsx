@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { EmailAlertSettings } from "../../types";
-import { fetchEmailAlertSettings, saveEmailAlertSettings } from "../../lib/api";
+import { fetchEmailAlertSettings, saveEmailAlertSettings, sendTestEmail } from "../../lib/api";
 
 interface EmailAlertsCardProps {
   isParent: boolean;
@@ -47,10 +47,14 @@ export function EmailAlertsCard({ isParent, studentName }: EmailAlertsCardProps)
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // "Send test email": goes to the saved address, so it's only offered once nothing is waiting to be saved.
+  const [savedAddr, setSavedAddr] = useState("");
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     fetchEmailAlertSettings()
-      .then(setSettings)
+      .then(s => { setSettings(s); setSavedAddr(s.emailAddr); })
       .catch(e => setLoadError(e instanceof Error ? e.message : "Couldn't load your alert settings"));
   }, []);
 
@@ -71,7 +75,9 @@ export function EmailAlertsCard({ isParent, studentName }: EmailAlertsCardProps)
     setSaving(true);
     setError(null);
     try {
-      setSettings(await saveEmailAlertSettings(settings));
+      const next = await saveEmailAlertSettings(settings);
+      setSettings(next);
+      setSavedAddr(next.emailAddr);
       setSaved(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't save your alert settings");
@@ -79,6 +85,21 @@ export function EmailAlertsCard({ isParent, studentName }: EmailAlertsCardProps)
       setSaving(false);
     }
   }
+
+  async function handleTest() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const to = await sendTestEmail();
+      setTestResult({ ok: true, text: `Sent to ${to}. It should arrive within a minute — check spam too.` });
+    } catch (e) {
+      setTestResult({ ok: false, text: e instanceof Error ? e.message : "Couldn't send the test" });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  const unsavedAddr = settings.emailAddr.trim() !== savedAddr.trim();
 
   return (
     <div className="space-y-3">
@@ -151,6 +172,14 @@ export function EmailAlertsCard({ isParent, studentName }: EmailAlertsCardProps)
         className={`w-full ${accent} text-white py-2.5 rounded-xl font-semibold text-sm disabled:opacity-40`}>
         {saving ? "Saving…" : saved ? "✓ Saved!" : "Save"}
       </button>
+      {savedAddr && (
+        <button onClick={handleTest} disabled={testing || unsavedAddr}
+          className="w-full bg-white text-gray-700 border border-gray-200 py-2.5 rounded-xl font-semibold text-sm disabled:opacity-40">
+          {testing ? "Sending…" : "✉️ Send test email"}
+        </button>
+      )}
+      {unsavedAddr && savedAddr && <p className="text-xs text-gray-400">Save the new address first, then send a test to it.</p>}
+      {testResult && <p className={`text-sm ${testResult.ok ? "text-green-600" : "text-red-500"}`}>{testResult.text}</p>}
       <p className="text-xs text-gray-400">
         "Due today" and retake emails go out around 7 AM, "Due tomorrow" around 6 PM, and payout emails within
         about 15 minutes. Alerts always show on this screen too. Text messages are coming later.

@@ -241,6 +241,12 @@ export async function saveEmailAlertSettings(settings: EmailAlertSettings): Prom
   return (await parseJsonOrThrow(res)) as EmailAlertSettings;
 }
 
+/** Email a test to the signed-in user's saved alert address. Returns the address it went to. */
+export async function sendTestEmail(): Promise<string> {
+  const res = await fetch("/api/test-email", { method: "POST" });
+  return ((await parseJsonOrThrow(res)) as { sentTo: string }).sentTo;
+}
+
 export async function fetchRewardSettings(): Promise<RewardSettings> {
   const res = await fetch("/api/reward-settings");
   return (await parseJsonOrThrow(res)) as RewardSettings;

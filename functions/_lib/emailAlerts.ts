@@ -212,3 +212,18 @@ ${sections
 
   return { subject, text, html };
 }
+
+/** "Send test email" (Alerts → Settings): a sample in the same layout as real alerts, so it's also a look at how they render. */
+export function testEmail(firstName: string): Email {
+  return render("Earn Your A: test email", `Hi ${firstName}, this is a test from Earn Your A. If you can read this, email alerts reach you.`, [
+    {
+      heading: "What you'll get",
+      lines: [
+        "Around 7 AM: work due today, and retake windows closing in 2 days",
+        "Around 6 PM: work due tomorrow",
+        "Payout requests and approvals, within about 15 minutes",
+        "No email on days with nothing to say",
+      ],
+    },
+  ]);
+}

@@ -1,6 +1,6 @@
 import type { Assignment } from "../../types";
 import { groupDueWork } from "../../lib/assignments";
-import { penaltyAmountFor, rewardAmountFor } from "../../lib/rewards";
+import { penaltyAmountFor, potentialReward } from "../../lib/rewards";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import { getSubjectColor } from "../../lib/styles";
 import { daysUntilDate } from "../../lib/dates";
@@ -74,8 +74,12 @@ export function DueToday({ assignments, onOpen, onAdd }: DueTodayProps) {
   const fmt = useFormatAmount();
   const groups = groupDueWork(assignments, rules.passingThreshold);
 
-  const worth = (a: Assignment) => fmt(rewardAmountFor(a.type, rules), { signed: true, short: true });
+  const worth = (a: Assignment) => {
+    const n = potentialReward(a, rules);
+    return n === null ? "no reward" : fmt(n, { signed: true, short: true });
+  };
   const riskNote = (a: Assignment) => {
+    if (a.trackOnly) return "graded, but no reward for this class";
     const penalty = penaltyAmountFor(a.type, rules);
     return penalty > 0 ? `${fmt(-penalty, { short: true })} if under ${rules.passingThreshold}%` : `${rules.passingThreshold}% or better to earn it`;
   };
@@ -85,7 +89,7 @@ export function DueToday({ assignments, onOpen, onAdd }: DueTodayProps) {
 
   // What she can still earn in the next 7 days: everything due today through day 6, plus every open makeup.
   const upForGrabs = [...groups.today, ...groups.tomorrow, ...groups.thisWeek, ...groups.fixIt]
-    .reduce((sum, a) => sum + rewardAmountFor(a.type, rules), 0);
+    .reduce((sum, a) => sum + (potentialReward(a, rules) ?? 0), 0);
   const dueThisWeek = groups.today.length + groups.tomorrow.length + groups.thisWeek.length;
   const nothingAtAll = Object.values(groups).every(g => g.length === 0);
 

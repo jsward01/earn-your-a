@@ -443,29 +443,56 @@ export async function deleteAssignments(ids: string[]): Promise<{ deleted: strin
   return (await parseJsonOrThrow(res)) as { deleted: string[]; skipped: { id: string; reason: "not_found" | "paid_out" }[]; balance: number | null };
 }
 
-export interface ExcludedClass {
+export type ClassMode = "pays" | "track" | "leave_out";
+
+/** A class set to Track only or Leave out (every class not listed pays). */
+export interface ClassSetting {
   id: string;
   classKey: string;
   className: string;
+  mode: Exclude<ClassMode, "pays">;
   createdAt: string;
   createdByName: string | null;
 }
 
-export async function fetchExcludedClasses(): Promise<ExcludedClass[]> {
-  const res = await fetch(scoped("/api/excluded-classes"));
-  return (await parseJsonOrThrow(res)) as ExcludedClass[];
+export interface ClassSettings {
+  classes: ClassSetting[];
+  /** Show Track only work in the Overview's to-do lists. */
+  showTrackOnlyAlerts: boolean;
 }
 
-export async function excludeClass(className: string): Promise<ExcludedClass> {
-  const res = await fetch(scoped("/api/excluded-classes"), {
-    method: "POST",
+/** What applying a class setting to the work already in the app does (unpaid work only). */
+export interface ClassChangeEffect {
+  count: number;
+  delta: number;
+  balanceBefore: number;
+  balanceAfter: number;
+}
+
+export async function fetchClassSettings(): Promise<ClassSettings> {
+  const res = await fetch(scoped("/api/class-settings"));
+  return (await parseJsonOrThrow(res)) as ClassSettings;
+}
+
+/** Set a class to Pays / Track only / Leave out; `dryRun` returns the effect on existing work without saving. */
+export async function setClassMode(
+  body: { className: string; mode: ClassMode; applyToExisting: boolean },
+  dryRun = false,
+): Promise<{ classes?: ClassSetting[]; affected: ClassChangeEffect }> {
+  const url = scoped("/api/class-settings");
+  const res = await fetch(dryRun ? `${url}${url.includes("?") ? "&" : "?"}dryRun=1` : url, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ className }),
+    body: JSON.stringify(body),
   });
-  return (await parseJsonOrThrow(res)) as ExcludedClass;
+  return (await parseJsonOrThrow(res)) as { classes?: ClassSetting[]; affected: ClassChangeEffect };
 }
 
-export async function includeClass(id: string): Promise<void> {
-  const res = await fetch(`/api/excluded-classes/${id}`, { method: "DELETE" });
-  await parseJsonOrThrow(res);
+export async function setTrackOnlyAlerts(show: boolean): Promise<boolean> {
+  const res = await fetch(scoped("/api/class-settings/alerts"), {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ show }),
+  });
+  return ((await parseJsonOrThrow(res)) as { showTrackOnlyAlerts: boolean }).showTrackOnlyAlerts;
 }

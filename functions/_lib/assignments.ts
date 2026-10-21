@@ -12,6 +12,8 @@ export interface AssignmentRow {
   makeup_used: number;
   /** 1 = due before the student's rewards started: recorded for averages, never priced (see migration 0012). */
   history_only: number;
+  /** 1 = in a class the parent set to Track only: recorded, priced at $0 (see migration 0016). */
+  track_only: number;
   /** SUM of the ledger rows tied to this assignment; NULL when it has none. Only present on rows read via ASSIGNMENT_SELECT. */
   recorded_reward?: number | null;
   /** The payout that settled (archived + locked) this item; NULL while it's still current. */
@@ -55,9 +57,10 @@ export function nextMakeupState(
  * Which finished work a payout settles. Graded and missing items are archived, EXCEPT ones whose makeup window is
  * still open — a failed test with days left to retake must stay editable, or the retake could never reverse its
  * penalty (that's what the holdback is for). Pending work is never archived, and neither is history work (it was never
- * owed anything, so it has its own "Before rewards started" list instead of sitting under a payout).
+ * owed anything, so it has its own "Before rewards started" list instead of sitting under a payout), nor is Track only
+ * work (same reason; it has its own "Track only" list).
  */
-export const ARCHIVE_ON_PAYOUT_WHERE = `payout_id IS NULL AND history_only = 0 AND status IN ('graded', 'missing') AND NOT (makeup_deadline IS NOT NULL AND makeup_deadline >= date('now'))`;
+export const ARCHIVE_ON_PAYOUT_WHERE = `payout_id IS NULL AND history_only = 0 AND track_only = 0 AND status IN ('graded', 'missing') AND NOT (makeup_deadline IS NOT NULL AND makeup_deadline >= date('now'))`;
 
 export const ARCHIVED_MESSAGE = "This work was paid out, so it's archived under Past Grades and can't be edited.";
 
@@ -73,6 +76,7 @@ export function toAssignmentJson(row: AssignmentRow) {
     makeupDeadline: row.makeup_deadline,
     makeupUsed: row.makeup_used === 1,
     historyOnly: row.history_only === 1,
+    trackOnly: row.track_only === 1,
     // What the ledger actually recorded for this item (null = nothing, i.e. $0). Cards show this for graded
     // work so they can't disagree with the money even after the family's reward settings change.
     recordedReward: row.recorded_reward ?? null,
@@ -84,7 +88,7 @@ export function toAssignmentJson(row: AssignmentRow) {
 
 export const ASSIGNMENT_SELECT = `SELECT a.*, (SELECT SUM(t.amount) FROM reward_transactions t WHERE t.assignment_id = a.id) AS recorded_reward, (SELECT p.resolved_at FROM payout_requests p WHERE p.id = a.payout_id) AS paid_at FROM assignments a`;
 
-/** History work never opens a makeup window (there's no penalty to win back). */
+/** History and Track only work never open a makeup window (there's no penalty to win back). */
 export const NO_MAKEUP = { deadline: null, used: 0 } as const;
 
 /** Is work due on `dueDate` before this student's rewards started? (No start date = rewards always on.) */

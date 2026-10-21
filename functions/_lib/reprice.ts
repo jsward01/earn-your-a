@@ -10,6 +10,7 @@ export interface RepriceAssignment {
   status: "pending" | "graded" | "missing";
   grade: number | null;
   historyOnly: boolean;
+  trackOnly: boolean;
   /** Settled by a payout: locked, so a change becomes a catch-up entry instead of a re-priced row. */
   paid: boolean;
   /** Sum of the ledger rows tied to it (null = none, i.e. $0). */
@@ -30,7 +31,7 @@ const roundCents = (n: number): number => Math.round(n * 100) / 100;
 
 /**
  * "Recalculate all graded work": what every assignment would be worth under today's settings, compared with what the
- * ledger recorded. Only the ones whose amount would change are returned. Ungraded and history work price to $0 as
+ * ledger recorded. Only the ones whose amount would change are returned. Ungraded, history and Track only work price to $0 as
  * always, so they only show up if something was somehow recorded for them.
  */
 export function planReprice(assignments: RepriceAssignment[], settings: FullRewardSettings): RepriceChange[] {
@@ -109,14 +110,14 @@ export function parseFromDate(value: unknown): { from: string | null } | { error
 export async function loadRepriceAssignments(db: D1Database, familyId: string, from: string | null): Promise<RepriceAssignment[]> {
   const { results } = await db
     .prepare(
-      `SELECT a.id, a.student_id, a.title, a.type, a.status, a.grade, a.history_only, a.payout_id,
+      `SELECT a.id, a.student_id, a.title, a.type, a.status, a.grade, a.history_only, a.track_only, a.payout_id,
               (SELECT SUM(t.amount) FROM reward_transactions t WHERE t.assignment_id = a.id) AS recorded
        FROM assignments a WHERE a.family_id = ? AND (? IS NULL OR a.due_date >= ?)`,
     )
     .bind(familyId, from, from)
     .all<{
       id: string; student_id: string; title: string; type: RepriceAssignment["type"]; status: RepriceAssignment["status"];
-      grade: number | null; history_only: number; payout_id: string | null; recorded: number | null;
+      grade: number | null; history_only: number; track_only: number; payout_id: string | null; recorded: number | null;
     }>();
   return results.map(r => ({
     id: r.id,
@@ -126,6 +127,7 @@ export async function loadRepriceAssignments(db: D1Database, familyId: string, f
     status: r.status,
     grade: r.grade,
     historyOnly: r.history_only === 1,
+    trackOnly: r.track_only === 1,
     paid: r.payout_id !== null,
     recorded: r.recorded,
   }));

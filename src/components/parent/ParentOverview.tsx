@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import type { Assignment, PayoutAction } from "../../types";
 import { getSubjectColor, getSubjectLight, getDaysLeftColor } from "../../lib/styles";
-import { fetchPayouts, parentPayout, resolvePayout, type PayoutRequestRow, type RewardSummary } from "../../lib/api";
-import { rewardAmountFor } from "../../lib/rewards";
+import { fetchClassSettings, fetchPayouts, parentPayout, resolvePayout, setTrackOnlyAlerts, type ClassSettings, type PayoutRequestRow, type RewardSummary } from "../../lib/api";
+import { potentialReward } from "../../lib/rewards";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import { daysUntilDate } from "../../lib/dates";
 import { splitPending } from "../../lib/assignments";
 import { ImportModal } from "./ImportModal";
 import { ClassAverages } from "../shared/ClassAverages";
+import { ClassSettingModal } from "./ClassSettingModal";
+import { classKey } from "../../lib/import/normalize";
 
 interface ParentOverviewProps {
   assignments: Assignment[];
@@ -62,6 +64,28 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
     fetchPayouts().then(setPayouts).catch(err => console.error("Failed to load payouts", err));
   }, [summary]);
 
+  // Pays / Track only / Leave out per class (tags on Class Averages), and whether Track only work shows in the lists below.
+  const [classSettings, setClassSettings] = useState<ClassSettings | null>(null);
+  const [editingClass, setEditingClass] = useState<string | null>(null);
+  const [savingAlerts, setSavingAlerts] = useState(false);
+  const loadClassSettings = () => fetchClassSettings().then(setClassSettings).catch(err => console.error("Failed to load class settings", err));
+  useEffect(() => { loadClassSettings(); }, []);
+  const classModes = Object.fromEntries((classSettings?.classes ?? []).map(c => [c.classKey, c.mode]));
+  const showTrackOnly = classSettings?.showTrackOnlyAlerts ?? true;
+
+  async function toggleTrackOnlyAlerts() {
+    if (!classSettings) return;
+    setSavingAlerts(true);
+    try {
+      const show = await setTrackOnlyAlerts(!showTrackOnly);
+      setClassSettings({ ...classSettings, showTrackOnlyAlerts: show });
+    } catch (err) {
+      console.error("Failed to save the Track only switch", err);
+    } finally {
+      setSavingAlerts(false);
+    }
+  }
+
   async function handleResolve(action: "approve" | "deny") {
     if (!pending) return;
     setResolving(true);
@@ -103,7 +127,12 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
 
   // Pending work splits in two: past due = waiting on the parent's grade, everything else is still coming up.
   // Work from before rewards started is on record only, so it never needs attention here (it still counts in the class averages).
-  const current = assignments.filter(a => !a.historyOnly);
+  // Track only work shows (tagged "no reward") unless the parent switched that off.
+  const current = assignments.filter(a => !a.historyOnly && (showTrackOnly || !a.trackOnly));
+  const stake = (a: Assignment, word: string) => {
+    const n = potentialReward(a, rules);
+    return n === null ? "no reward" : `${fmt(n, { short: true })} ${word}`;
+  };
   const { needsGrade, comingUp: upcoming } = splitPending(current);
 
   // Work already settled by a payout is archived (Past Grades), so it drops off these to-do style lists.
@@ -184,13 +213,14 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
                     <p className="text-sm font-semibold text-gray-800">{a.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectLight(a.subject)}`}>{a.subject}</span>
+                      {a.trackOnly && <span className="text-xs px-2 py-0.5 rounded-full border border-amber-200 text-amber-700 font-medium">Track only</span>}
                       <span className="text-xs text-gray-400 capitalize">{a.type}</span>
                     </div>
                   </div>
                 </div>
                 <div className="text-right shrink-0 ml-2">
                   <p className="text-xs text-amber-700 font-semibold">{getWaitingLabel(a.dueDate)}</p>
-                  <p className="text-xs text-indigo-500 font-semibold mt-0.5">{fmt(rewardAmountFor(a.type, rules), { short: true })} at stake</p>
+                  <p className="text-xs text-indigo-500 font-semibold mt-0.5">{stake(a, "at stake")}</p>
                 </div>
               </div>
             ))}
@@ -222,13 +252,14 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
                       <p className="text-sm font-semibold text-gray-800">{a.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectLight(a.subject)}`}>{a.subject}</span>
+                      {a.trackOnly && <span className="text-xs px-2 py-0.5 rounded-full border border-amber-200 text-amber-700 font-medium">Track only</span>}
                         <span className="text-xs text-gray-400 capitalize">{a.type}</span>
                       </div>
                     </div>
                   </div>
                   <div className="text-right shrink-0 ml-2">
                     <p className={`text-xs ${due.color}`}>{due.text}</p>
-                    <p className="text-xs text-indigo-500 font-semibold mt-0.5">{fmt(rewardAmountFor(a.type, rules), { short: true })} potential</p>
+                    <p className="text-xs text-indigo-500 font-semibold mt-0.5">{stake(a, "potential")}</p>
                   </div>
                 </div>
               );
@@ -259,13 +290,14 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
                     <p className="text-sm font-semibold text-gray-800">{a.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectLight(a.subject)}`}>{a.subject}</span>
+                      {a.trackOnly && <span className="text-xs px-2 py-0.5 rounded-full border border-amber-200 text-amber-700 font-medium">Track only</span>}
                       {(a.daysLeft ?? 0) > 0 && <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${getDaysLeftColor(a.daysLeft ?? 0)}`}>⏱ {a.daysLeft}d to fix</span>}
                     </div>
                   </div>
                 </div>
                 <div className="text-right shrink-0 ml-2">
                   <p className="text-xs text-red-500 font-bold">{fmt(0)}</p>
-                  <p className="text-xs text-gray-400">was {fmt(rewardAmountFor(a.type, rules), { short: true })}</p>
+                  <p className="text-xs text-gray-400">{a.trackOnly ? "Track only" : `was ${fmt(potentialReward(a, rules) ?? 0, { short: true })}`}</p>
                 </div>
               </div>
             ))}
@@ -297,6 +329,7 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
                       <p className="text-sm font-semibold text-gray-800">{a.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectLight(a.subject)}`}>{a.subject}</span>
+                      {a.trackOnly && <span className="text-xs px-2 py-0.5 rounded-full border border-amber-200 text-amber-700 font-medium">Track only</span>}
                         <span className="text-xs text-gray-400 capitalize">{a.type}</span>
                         {canMakeup && <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${getDaysLeftColor(a.daysLeft ?? 0)}`}>⏱ {a.daysLeft}d to retake</span>}
                       </div>
@@ -306,7 +339,7 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
                     <p className="text-xl font-bold text-orange-600">{a.grade}%</p>
                     {canMakeup
                       ? <p className="text-xs text-green-600 font-semibold">Retake available</p>
-                      : <p className="text-xs text-red-400">No retake</p>
+                      : <p className="text-xs text-red-400">{a.trackOnly ? "No reward" : "No retake"}</p>
                     }
                   </div>
                 </div>
@@ -317,7 +350,35 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
       </div>
       )}
 
-      {filter === "all" && <ClassAverages assignments={assignments} />}
+      {filter === "all" && <ClassAverages assignments={assignments} classModes={classModes} onClassTap={setEditingClass} />}
+
+      {filter === "all" && classSettings?.classes.some(c => c.mode === "track") && (
+        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-800">Show Track only classes in the lists above</p>
+            <p className="text-xs text-gray-400">To Grade, Coming Up, Missing and Low Grade. Class averages always include them.</p>
+          </div>
+          <button role="switch" aria-checked={showTrackOnly} aria-label="Show Track only classes in the lists above"
+            disabled={savingAlerts} onClick={toggleTrackOnlyAlerts}
+            className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-50 ${showTrackOnly ? "bg-emerald-700" : "bg-gray-200"}`}>
+            <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow ${showTrackOnly ? "left-6" : "left-0.5"}`} />
+          </button>
+        </div>
+      )}
+
+      {editingClass && (
+        <ClassSettingModal
+          className={editingClass}
+          current={classModes[classKey(editingClass)] ?? "pays"}
+          assignments={assignments}
+          studentName={summary?.studentName ?? "your student"}
+          onClose={() => setEditingClass(null)}
+          onSaved={(classes, changed) => {
+            setClassSettings(s => (s ? { ...s, classes } : s));
+            if (changed) onChanged();
+          }}
+        />
+      )}
 
       {showPayoutModal && pending && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
@@ -383,7 +444,7 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
           studentName={summary?.studentName ?? "your student"}
           studentId={summary?.studentId ?? null}
           rewardsStartDate={summary?.rewardsStartDate ?? null}
-          onClose={() => setShowImport(false)}
+          onClose={() => { setShowImport(false); loadClassSettings(); }}
           onImported={onChanged}
         />
       )}

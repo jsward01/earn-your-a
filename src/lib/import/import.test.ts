@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Assignment } from "../../types";
 import { findDate, parseInfiniteCampus, splitStamp, splitTitleAndClass } from "./infiniteCampus";
 import { buildPlan, classCounts, estimateDelta, guessType, notInList } from "./match";
+import { classKey } from "./normalize";
 import { DEFAULT_REWARD_SETTINGS } from "../rewards";
 import { fromExtracted } from "./other";
 import { GRADE_SOURCES, detectFormat } from "./sources";
@@ -456,7 +457,7 @@ describe("excluded classes", () => {
     ).items;
 
   it("every item in an excluded class is left out and unticked", () => {
-    const rows = buildPlan(parsed(), [], [], null, ["spanish ii"]);
+    const rows = buildPlan(parsed(), [], [], null, { "spanish ii": "leave_out" });
     expect(rows.map(r => [r.item.title, r.kind, r.selected])).toEqual([
       ["Vocab Quiz", "excluded", false],
       ["HW 9", "new", true],
@@ -466,18 +467,45 @@ describe("excluded classes", () => {
 
   it("an excluded class never updates work already in the app either", () => {
     const existing = a({ id: "e", title: "Vocab Quiz", subject: "Spanish II", status: "pending" });
-    const [row] = buildPlan(parsed(), [existing], [], null, ["spanish ii"]);
+    const [row] = buildPlan(parsed(), [existing], [], null, { "spanish ii": "leave_out" });
     expect(row).toMatchObject({ kind: "excluded", existing, selected: false });
     expect(estimateDelta(row, { ...DEFAULT_REWARD_SETTINGS })).toBe(0);
   });
 
   it("no excluded classes = nothing changes", () => {
-    expect(buildPlan(parsed(), [], [], null, []).every(r => r.kind === "new")).toBe(true);
+    expect(buildPlan(parsed(), [], [], null, {}).every(r => r.kind === "new")).toBe(true);
   });
 
   it("excluded items aren't offered as near-duplicates", () => {
-    const rows = buildPlan(parsed(), [a({ id: "x", title: "Vocab", subject: "Spanish II", status: "graded", grade: 90 })], [], null, ["spanish ii"]);
+    const rows = buildPlan(parsed(), [a({ id: "x", title: "Vocab", subject: "Spanish II", status: "graded", grade: 90 })], [], null, { "spanish ii": "leave_out" });
     expect(rows[0].similar).toBeUndefined();
+  });
+
+  it("a Track only class imports as new work marked $0", () => {
+    const rows = buildPlan(parsed(), [], [], null, { "spanish ii": "track" });
+    expect(rows.map(r => [r.item.title, r.kind, r.selected, !!r.trackOnly])).toEqual([
+      ["Vocab Quiz", "new", true, true],
+      ["HW 9", "new", true, false],
+      ["Habla 2", "new", true, true],
+    ]);
+    expect(rows[0].note).toMatch(/Track only/);
+    expect(estimateDelta(rows[0], { ...DEFAULT_REWARD_SETTINGS })).toBe(0);
+    expect(estimateDelta(rows[1], { ...DEFAULT_REWARD_SETTINGS })).toBe(DEFAULT_REWARD_SETTINGS.assignmentReward);
+  });
+
+  it("an update follows the item's own flag (work kept at its reward when the class changed)", () => {
+    const kept = a({ id: "k", title: "Vocab Quiz", subject: "Spanish II", type: "quiz", status: "pending" });
+    const flagged = a({ id: "f", title: "Habla 2", subject: "Spanish II", status: "missing", trackOnly: true, recordedReward: null });
+    const rows = buildPlan(parsed(), [kept, flagged], [], null, { "spanish ii": "track" });
+    expect(rows[0]).toMatchObject({ kind: "update", trackOnly: undefined });
+    expect(estimateDelta(rows[0], { ...DEFAULT_REWARD_SETTINGS })).toBe(DEFAULT_REWARD_SETTINGS.quizReward);
+    expect(rows[2]).toMatchObject({ kind: "update", trackOnly: true });
+    expect(estimateDelta(rows[2], { ...DEFAULT_REWARD_SETTINGS })).toBe(0);
+  });
+
+  it("class settings match with the term stripped", () => {
+    expect(classKey("Spanish II -S1")).toBe("spanish ii");
+    expect(classKey(" Spanish  II ")).toBe("spanish ii");
   });
 
   it("classCounts lists each class once with its item count, sorted", () => {

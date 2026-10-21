@@ -102,6 +102,8 @@ interface AssignmentForReward {
   title: string;
   /** Work from before the student's rewards started: recorded, never priced. */
   historyOnly?: boolean;
+  /** Work in a class the parent set to Track only: recorded, never priced. */
+  trackOnly?: boolean;
 }
 
 /**
@@ -114,12 +116,13 @@ interface AssignmentForReward {
  *   grade of its type (nothing when that penalty is 0). Turning it in and passing replaces that with the reward.
  * - Ungraded work never has a ledger entry.
  * - History work (due before the student's rewards started) never has a ledger entry.
+ * - Neither does work in a Track only class.
  */
 export function computeAssignmentReward(
   a: AssignmentForReward,
   settings: FullRewardSettings,
 ): { amount: number; reason: string } | null {
-  if (a.historyOnly) return null;
+  if (a.historyOnly || a.trackOnly) return null;
 
   const reward = a.type === "assignment" ? settings.assignmentReward : a.type === "quiz" ? settings.quizReward : settings.testReward;
   const penalty = a.type === "assignment" ? settings.assignmentPenalty : a.type === "quiz" ? settings.quizPenalty : settings.testPenalty;

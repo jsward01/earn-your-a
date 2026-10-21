@@ -18,6 +18,8 @@ export interface Assignment {
   paidAt?: string | null;
   /** Due before the student's rewards started: recorded (grades, averages) but never earns or costs anything. */
   historyOnly?: boolean;
+  /** In a class the parent set to Track only: recorded (grades, averages) but never earns or costs anything. */
+  trackOnly?: boolean;
 }
 
 export interface RewardStatus {

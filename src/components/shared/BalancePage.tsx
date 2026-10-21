@@ -21,7 +21,7 @@ interface BalancePageProps {
   onDeleted: () => void;
 }
 
-type Tab = "current" | "past" | "history";
+type Tab = "current" | "past" | "history" | "track";
 
 const byDueDesc = (a: Assignment, b: Assignment) => b.dueDate.localeCompare(a.dueDate);
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -49,9 +49,11 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
   }, []);
 
   // "Current" = finished work that hasn't been settled by a payout yet (graded or missing; pending work has no grade to show).
-  const current = assignments.filter(a => a.status !== "pending" && !a.payoutId && !a.historyOnly).sort(byDueDesc);
+  const current = assignments.filter(a => a.status !== "pending" && !a.payoutId && !a.historyOnly && !a.trackOnly).sort(byDueDesc);
   // Work from before rewards started: on record (and in averages), never owed anything, so it gets its own list.
   const history = assignments.filter(a => a.historyOnly && a.status !== "pending").sort(byDueDesc);
+  // Work in Track only classes: graded and averaged, $0, never paid out — its own list too.
+  const tracked = assignments.filter(a => a.trackOnly && !a.historyOnly && a.status !== "pending").sort(byDueDesc);
   const currentAdjustments = adjustments.filter(x => !x.payoutId);
   const currentTotal = round2(
     current.reduce((s, a) => s + (a.recordedReward ?? 0), 0) + currentAdjustments.reduce((s, x) => s + x.amount, 0),
@@ -79,7 +81,7 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
     .sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? ""));
 
   // The list the Select button works on: whichever editable tab is showing.
-  const selectable = tab === "current" ? current : tab === "history" ? history : [];
+  const selectable = tab === "current" ? current : tab === "history" ? history : tab === "track" ? tracked : [];
   const pickedItems = selectable.filter(a => picked.has(a.id));
   const pickedTotal = round2(pickedItems.reduce((s, a) => s + (a.recordedReward ?? 0), 0));
   const classes = [...new Set(selectable.map(a => a.subject))].sort();
@@ -202,10 +204,10 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
       </div>
 
       <div className="flex gap-2 flex-wrap items-center">
-        {(history.length > 0 ? (["current", "past", "history"] as const) : (["current", "past"] as const)).map(t => (
+        {(["current", "past", ...(history.length > 0 ? ["history"] : []), ...(tracked.length > 0 ? ["track"] : [])] as Tab[]).map(t => (
           <button key={t} onClick={() => { setTab(t); stopSelecting(); }}
             className={`px-4 py-2 rounded-full text-sm font-medium ${tab === t ? "bg-indigo-600 text-white shadow" : "bg-white text-gray-500 border border-gray-200"}`}>
-            {t === "current" ? `Current Grades (${current.length})` : t === "past" ? "Past Grades" : `Before Rewards (${history.length})`}
+            {t === "current" ? `Current Grades (${current.length})` : t === "past" ? "Past Grades" : t === "history" ? `Before Rewards (${history.length})` : `Track Only (${tracked.length})`}
           </button>
         ))}
         {!readOnly && selectable.length > 0 && (
@@ -288,6 +290,16 @@ export function BalancePage({ assignments, summary, readOnly, onBack, onEdit, on
             These count toward averages but never earn or cost anything.
           </p>
           <div className="divide-y divide-gray-50">{history.map(a => row(a, !readOnly))}</div>
+        </div>
+      )}
+
+      {tab === "track" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <p className="text-xs text-gray-500 px-4 py-3 bg-gray-50">
+            Classes set to Track only. These count toward averages but never earn or cost anything, and payouts leave them here.
+            {!readOnly && " To change a class, tap it under Class Averages on the Overview."}
+          </p>
+          <div className="divide-y divide-gray-50">{tracked.map(a => row(a, !readOnly))}</div>
         </div>
       )}
 

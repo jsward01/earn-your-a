@@ -1,5 +1,5 @@
 import type { Assignment, AssignmentType } from "../../types";
-import { importKey, normalize } from "./normalize";
+import { classKey, importKey, normalize } from "./normalize";
 import type { ImportedItem } from "./types";
 import { penaltyAmountFor, rewardAmountFor, type RewardRules } from "../rewards";
 
@@ -22,7 +22,12 @@ export interface PlanRow {
   ignoreId?: string;
   /** New work due before the student's rewards started: it will be saved as history (recorded, $0). */
   history?: boolean;
+  /** Saved as Track only: new work in a Track only class, or existing work already marked that way ($0). */
+  trackOnly?: boolean;
 }
+
+/** A class's import setting by its key (`classKey`); classes not listed pay as normal. */
+export type ClassModes = Record<string, "track" | "leave_out">;
 
 /** A saved "ignore this on future imports" entry, matched by normalized class + title. */
 export interface IgnoreKey {
@@ -53,9 +58,8 @@ export function buildPlan(
   assignments: Assignment[],
   ignores: IgnoreKey[] = [],
   rewardsStart: string | null = null,
-  excludedClasses: string[] = [],
+  classModes: ClassModes = {},
 ): PlanRow[] {
-  const excluded = new Set(excludedClasses);
   const ignored = new Map(ignores.map(i => [`${i.classKey}\u0000${i.titleKey}`, i.id]));
   const byKey = new Map<string, Assignment>();
   for (const a of assignments) {
@@ -66,9 +70,15 @@ export function buildPlan(
   const rows = items.map((item): PlanRow => {
     const existing = byKey.get(importKey(item.className, item.title)) ?? null;
     // A class left out of imports: nothing in it is added or changed, whether or not the app already has it.
-    if (excluded.has(normalize(item.className))) {
+    const mode = classModes[classKey(item.className)];
+    if (mode === "leave_out") {
       return { item, kind: "excluded", existing, type: existing?.type ?? guessType(item.title), selected: false, note: "This class is left out of imports" };
     }
+    const row = planRow(item, existing, mode === "track");
+    return existing ? { ...row, trackOnly: existing.trackOnly || undefined } : row.kind === "new" && mode === "track" ? { ...row, trackOnly: true } : row;
+  });
+
+  function planRow(item: ImportedItem, existing: Assignment | null, trackClass: boolean): PlanRow {
     const incoming = item.status === "graded" ? `${item.grade}%` : item.status;
 
     if (!existing) {
@@ -78,6 +88,9 @@ export function buildPlan(
       }
       // The server decides this from the due date when it saves; shown here so the parent knows what to expect.
       // (No date = saved as due today, which is never before the start.)
+      if (trackClass) {
+        return { item, kind: "new", existing, type: guessType(item.title), selected: true, note: "Not in the app yet — Track only class (counts in averages, $0)" };
+      }
       if (rewardsStart && item.date && item.date < rewardsStart) {
         return { item, kind: "new", existing, type: guessType(item.title), selected: true, history: true, note: "Before rewards started — saved as history (counts in averages, $0)" };
       }
@@ -104,7 +117,7 @@ export function buildPlan(
       };
     }
     return { item, kind: "update", existing, type: existing.type, selected: true, note: `${describe(existing)} → ${incoming}` };
-  });
+  }
 
   // New work whose title nearly matches an unmatched app item in the same class ("Daniel el Detective" vs
   // "Daniel el Detective - Reading Assessment") is probably the same assignment under a slightly different name.
@@ -143,7 +156,7 @@ export function notInList(rows: PlanRow[], assignments: Assignment[]): Assignmen
 export function estimateDelta(r: PlanRow, rules: RewardRules): number {
   if (r.kind === "excluded" || r.kind === "ignored") return 0;
   const after =
-    r.history || r.existing?.historyOnly
+    r.history || r.trackOnly || r.existing?.historyOnly || r.existing?.trackOnly
       ? 0
       : r.item.status === "missing"
         ? rules.penalizeMissing && penaltyAmountFor(r.type, rules) > 0 ? -penaltyAmountFor(r.type, rules) : 0
@@ -155,11 +168,11 @@ export function estimateDelta(r: PlanRow, rules: RewardRules): number {
   return after - (r.existing?.recordedReward ?? 0);
 }
 
-/** The classes in a list, with how many of its items each has (for the "leave out a class" picker). */
+/** The classes in a list, with how many of its items each has (for the Pays / Track only / Leave out chips). */
 export function classCounts(items: ImportedItem[]): { className: string; count: number }[] {
   const counts = new Map<string, { className: string; count: number }>();
   for (const item of items) {
-    const key = normalize(item.className);
+    const key = classKey(item.className);
     const entry = counts.get(key) ?? { className: item.className, count: 0 };
     entry.count++;
     counts.set(key, entry);

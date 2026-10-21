@@ -18,3 +18,8 @@ export function importKey(className: string, title: string): string {
 export function stripTerm(className: string): string {
   return className.replace(/\s*-\s*(?:s|q|t|sem|semester|quarter|term)\s*\d\s*$/i, "").trim();
 }
+
+/** The key a class's Pays / Track only / Leave out setting is stored by (the server uses the same). */
+export function classKey(className: string): string {
+  return normalize(stripTerm(className.trim()));
+}

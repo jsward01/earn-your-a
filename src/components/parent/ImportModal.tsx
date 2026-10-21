@@ -1,15 +1,16 @@
 import { useMemo, useRef, useState } from "react";
 import type { Assignment, AssignmentType } from "../../types";
 import {
-  createAssignment, deleteAssignments, excludeClass, extractGrades, fetchExcludedClasses, fetchImportIgnores, includeClass, setRewardsStart,
-  fetchRewardSummary, ignoreImportItem, unignoreImportItem, updateAssignment, type ExcludedClass,
+  createAssignment, deleteAssignments, extractGrades, fetchAssignments, fetchClassSettings, fetchImportIgnores, setRewardsStart,
+  fetchRewardSummary, ignoreImportItem, unignoreImportItem, updateAssignment, type ClassSetting,
 } from "../../lib/api";
+import { ClassSettingModal } from "./ClassSettingModal";
 import { fileToScreenshotUpload } from "../../lib/screenshotImage";
 import { formatDay } from "../../lib/dates";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import { detectFormat } from "../../lib/import/sources";
-import { buildPlan, classCounts, estimateDelta, knownClasses, notInList, type IgnoreKey, type PlanKind, type PlanRow } from "../../lib/import/match";
-import { importKey, normalize } from "../../lib/import/normalize";
+import { buildPlan, classCounts, estimateDelta, knownClasses, notInList, type ClassModes, type IgnoreKey, type PlanKind, type PlanRow } from "../../lib/import/match";
+import { classKey, importKey } from "../../lib/import/normalize";
 import type { ImportedItem, ParseResult, SkippedLine } from "../../lib/import/types";
 import { fromExtracted } from "../../lib/import/other";
 
@@ -38,11 +39,13 @@ const SECTIONS: { kind: PlanKind; title: string; hint: string }[] = [
   { kind: "locked", title: "Paid out — can't change", hint: "Fix these with ± Adjust on the Balance page" },
   { kind: "unchanged", title: "Already up to date", hint: "" },
   { kind: "ignored", title: "Ignored", hint: "You chose not to import these. They stay here on every import until you stop ignoring them." },
-  { kind: "excluded", title: "Left out — class excluded", hint: "Tap the class under “Classes in this list” to include it again." },
+  { kind: "excluded", title: "Left out — class excluded", hint: "Tap the class under “Classes in this list” to change that." },
 ];
 const COLLAPSIBLE: PlanKind[] = ["unchanged", "ignored", "excluded"];
 
 const today = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD in local time
+
+const modesOf = (classes: ClassSetting[]): ClassModes => Object.fromEntries(classes.map(c => [c.classKey, c.mode]));
 
 /** Parent-only: paste a school system's notification list, review what it would change, then save the ticked rows. */
 export function ImportModal({ assignments, studentName, studentId, rewardsStartDate, onClose, onImported }: ImportModalProps) {
@@ -67,8 +70,9 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
   // The modal's own copy, so a "Same assignment" rename shows immediately without waiting for the app to reload.
   const [appAssignments, setAppAssignments] = useState<Assignment[]>(assignments);
   const [ignores, setIgnores] = useState<IgnoreKey[]>([]);
-  const [excluded, setExcluded] = useState<ExcludedClass[]>([]);
-  const [classBusy, setClassBusy] = useState<string | null>(null);
+  const [classSettings, setClassSettings] = useState<ClassSetting[]>([]);
+  // The class whose Pays / Track only / Leave out pop-up is open.
+  const [editingClass, setEditingClass] = useState<string | null>(null);
   // Just left a class out, and the app already has unpaid work in it: offer to delete that too.
   const [cleanup, setCleanup] = useState<{ className: string; items: Assignment[]; paidOut: number } | null>(null);
   const [cleaning, setCleaning] = useState(false);
@@ -91,13 +95,13 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
     // If the ignore list can't load, show everything rather than block the import.
     const [saved, left] = await Promise.all([
       fetchImportIgnores().catch(err => { console.error("Failed to load ignored imports", err); return []; }),
-      fetchExcludedClasses().catch(err => { console.error("Failed to load excluded classes", err); return []; }),
+      fetchClassSettings().then(s => s.classes).catch(err => { console.error("Failed to load class settings", err); return []; }),
     ]);
     setItems(result.items);
     setIgnores(saved);
-    setExcluded(left);
+    setClassSettings(left);
     setCleanup(null);
-    setRows(buildPlan(result.items, appAssignments, saved, startDate, left.map(e => e.classKey)));
+    setRows(buildPlan(result.items, appAssignments, saved, startDate, modesOf(left)));
     setSkipped(result.skipped);
     setComplete(result.complete);
     setRowError(null);
@@ -105,10 +109,10 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
   }
 
   /** Re-match after an ignore/rename, keeping the parent's ticks and type choices on rows that didn't change kind. */
-  function rebuild(nextAssignments: Assignment[], nextIgnores: IgnoreKey[], nextExcluded: ExcludedClass[] = excluded) {
+  function rebuild(nextAssignments: Assignment[], nextIgnores: IgnoreKey[], nextClasses: ClassSetting[] = classSettings) {
     setRows(prev => {
       const before = new Map(prev.map(r => [importKey(r.item.className, r.item.title), r]));
-      return buildPlan(items, nextAssignments, nextIgnores, startDate, nextExcluded.map(e => e.classKey)).map(r => {
+      return buildPlan(items, nextAssignments, nextIgnores, startDate, modesOf(nextClasses)).map(r => {
         const old = before.get(importKey(r.item.className, r.item.title));
         return old && old.kind === r.kind ? { ...r, selected: old.selected, type: old.type } : r;
       });
@@ -157,32 +161,26 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
     rebuild(appAssignments, next);
   });
 
-  /** Leave a whole class out of imports (saved for next time), or include it again. */
-  async function toggleClass(className: string) {
-    const key = normalize(className);
-    const entry = excluded.find(e => e.classKey === key);
-    setClassBusy(key);
-    setRowError(null);
-    try {
-      if (entry) {
-        await includeClass(entry.id);
-        const next = excluded.filter(e => e.id !== entry.id);
-        setExcluded(next);
-        rebuild(appAssignments, ignores, next);
-        if (cleanup && normalize(cleanup.className) === key) setCleanup(null);
-      } else {
-        const added = await excludeClass(className);
-        const next = [...excluded, added];
-        setExcluded(next);
-        rebuild(appAssignments, ignores, next);
-        const inApp = appAssignments.filter(a => normalize(a.subject) === key);
-        const unpaid = inApp.filter(a => !a.payoutId);
-        setCleanup(unpaid.length > 0 ? { className, items: unpaid, paidOut: inApp.length - unpaid.length } : null);
-      }
-    } catch (err) {
-      setRowError(err instanceof Error ? err.message : "That didn't work — try again");
-    } finally {
-      setClassBusy(null);
+  /** A class's setting was saved in its pop-up: re-match, and after Leave out offer to delete its unpaid work. */
+  async function handleClassSaved(className: string, next: ClassSetting[], changedExisting: boolean) {
+    const key = classKey(className);
+    const wasLeftOut = classSettings.some(c => c.classKey === key && c.mode === "leave_out");
+    const leftOut = next.some(c => c.classKey === key && c.mode === "leave_out");
+    setClassSettings(next);
+    let nextAssignments = appAssignments;
+    if (changedExisting) {
+      // Work already in the app was re-priced: reload it so the review's estimate starts from the new amounts.
+      nextAssignments = await fetchAssignments().catch(() => appAssignments);
+      setAppAssignments(nextAssignments);
+      onImported();
+    }
+    rebuild(nextAssignments, ignores, next);
+    if (leftOut && !wasLeftOut) {
+      const inApp = nextAssignments.filter(a => classKey(a.subject) === key);
+      const unpaid = inApp.filter(a => !a.payoutId);
+      setCleanup(unpaid.length > 0 ? { className, items: unpaid, paidOut: inApp.length - unpaid.length } : null);
+    } else if (cleanup && classKey(cleanup.className) === key) {
+      setCleanup(null);
     }
   }
 
@@ -454,28 +452,37 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
               <div className="rounded-2xl border border-gray-100 px-4 py-3 space-y-2">
                 <div>
                   <p className="text-sm font-semibold text-gray-700">Classes in this list</p>
-                  <p className="text-xs text-gray-400">Tap a class to leave it out of imports — now and every time after. Tap it again to include it.</p>
+                  <p className="text-xs text-gray-400">
+                    Tap a class to choose: <span className="font-medium">Pays</span>, <span className="font-medium">Track only</span> (grades
+                    and averages, $0), or <span className="font-medium">Leave out</span>. Saved for every later import.
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {[
                     ...classCounts(items),
-                    ...excluded.filter(e => !items.some(i => normalize(i.className) === e.classKey)).map(e => ({ className: e.className, count: 0 })),
+                    ...classSettings.filter(e => !items.some(i => classKey(i.className) === e.classKey)).map(e => ({ className: e.className, count: 0 })),
                   ].map(c => {
-                    const key = normalize(c.className);
-                    const out = excluded.some(e => e.classKey === key);
+                    const key = classKey(c.className);
+                    const mode = classSettings.find(e => e.classKey === key)?.mode ?? "pays";
+                    const word = mode === "track" ? "Track only" : mode === "leave_out" ? "Left out" : "Pays";
                     return (
-                      <button key={key} onClick={() => toggleClass(c.className)} disabled={classBusy !== null || saving}
-                        aria-pressed={out} aria-label={out ? `Include ${c.className} again` : `Leave out ${c.className}`}
-                        className={`text-xs font-medium px-3 py-1.5 rounded-full border disabled:opacity-50 ${out
+                      <button key={key} onClick={() => setEditingClass(c.className)} disabled={saving}
+                        aria-label={`${c.className}: ${word}. Change`}
+                        className={`text-xs font-medium px-3 py-1.5 rounded-full border disabled:opacity-50 ${mode === "leave_out"
                           ? "bg-gray-100 text-gray-400 border-gray-200 line-through"
+                          : mode === "track"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
                           : "bg-indigo-50 text-indigo-700 border-indigo-200"}`}>
-                        {classBusy === key ? "Saving…" : `${c.className}${c.count ? ` (${c.count})` : ""}`}
+                        {c.className}{c.count ? ` (${c.count})` : ""}{mode === "track" ? " · Track only" : ""}
                       </button>
                     );
                   })}
                 </div>
-                {excluded.length > 0 && (
-                  <p className="text-xs text-gray-400">Left out: {excluded.map(e => e.className).join(", ")}</p>
+                {classSettings.some(e => e.mode === "track") && (
+                  <p className="text-xs text-gray-400">Track only: {classSettings.filter(e => e.mode === "track").map(e => e.className).join(", ")}</p>
+                )}
+                {classSettings.some(e => e.mode === "leave_out") && (
+                  <p className="text-xs text-gray-400">Left out: {classSettings.filter(e => e.mode === "leave_out").map(e => e.className).join(", ")}</p>
                 )}
               </div>
             )}
@@ -587,6 +594,16 @@ export function ImportModal({ assignments, studentName, studentId, rewardsStartD
           </>
         )}
       </div>
+      {editingClass && (
+        <ClassSettingModal
+          className={editingClass}
+          current={classSettings.find(e => e.classKey === classKey(editingClass))?.mode ?? "pays"}
+          assignments={appAssignments}
+          studentName={studentName}
+          onClose={() => setEditingClass(null)}
+          onSaved={(next, changed) => handleClassSaved(editingClass, next, changed)}
+        />
+      )}
     </div>
   );
 }

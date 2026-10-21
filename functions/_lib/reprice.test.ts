@@ -23,7 +23,7 @@ function item(over: Partial<RepriceAssignment>): RepriceAssignment {
   n += 1;
   return {
     id: `a${n}`, studentId: "s1", title: `Item ${n}`, type: "assignment", status: "graded", grade: 90,
-    historyOnly: false, paid: false, recorded: 3, ...over,
+    historyOnly: false, trackOnly: false, paid: false, recorded: 3, ...over,
   };
 }
 

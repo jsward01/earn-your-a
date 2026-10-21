@@ -12,6 +12,7 @@ export interface AssignmentApiRow {
   makeupDeadline: string | null;
   makeupUsed: boolean;
   historyOnly?: boolean;
+  trackOnly?: boolean;
   recordedReward: number | null;
   payoutId: string | null;
   paidAt: string | null;
@@ -32,6 +33,7 @@ export function fromApiRow(row: AssignmentApiRow): Assignment {
     payoutId: row.payoutId ?? null,
     paidAt: row.paidAt ?? null,
     historyOnly: row.historyOnly ?? false,
+    trackOnly: row.trackOnly ?? false,
   };
 }
 

@@ -51,6 +51,14 @@ describe.each(RULE_SETS)("browser rules match the server's ledger rules — %s",
     expect((shown ?? 0) + 0).toBe(ledger + 0);
   });
 
+  it.each(types.flatMap(type => [0, 69, 70, 100].map(grade => [type, grade] as const)))("Track only %s at %d percent pays nothing", (type, grade) => {
+    const shown = getRewardStatus(make({ type, grade, trackOnly: true }), { ...rules, penalizeMissing: true, rewardType: "money", customUnit: "" }).earned;
+    const ledger = computeAssignmentReward({ type, status: "graded", grade, title: "T", trackOnly: true }, { ...settings, penalizeMissing: true })?.amount ?? 0;
+    expect((shown ?? 0) + 0).toBe(ledger + 0);
+    const missing = getRewardStatus(make({ type, status: "missing", grade: null, trackOnly: true }), { ...rules, penalizeMissing: true, rewardType: "money", customUnit: "" }).earned;
+    expect(missing).toBe(0);
+  });
+
   it.each(types.flatMap(type => [false, true].map(penalizeMissing => [type, penalizeMissing] as const)))("%s: missing agrees (missing penalty %s)", (type, penalizeMissing) => {
     const shown = getRewardStatus(make({ type, status: "missing", grade: null }), { ...rules, penalizeMissing, rewardType: "money", customUnit: "" }).earned;
     const ledger = computeAssignmentReward({ type, status: "missing", grade: null, title: "T" }, { ...settings, penalizeMissing })?.amount ?? 0;

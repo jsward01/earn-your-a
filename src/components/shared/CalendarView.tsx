@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Assignment } from "../../types";
-import { getRewardStatus, rewardAmountFor } from "../../lib/rewards";
+import { getRewardStatus, potentialReward } from "../../lib/rewards";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import { getSubjectLight } from "../../lib/styles";
 
@@ -178,7 +178,7 @@ export function CalendarView({ assignments, isParent }: CalendarViewProps) {
             { label: "Due", val: schoolDays.reduce((s, d) => s + getAssignmentsFor(d).filter(a => a.status === "pending").length, 0), color: "text-indigo-600" },
             { label: "Missing", val: schoolDays.reduce((s, d) => s + getAssignmentsFor(d).filter(a => a.status === "missing").length, 0), color: "text-red-500" },
             { label: "Low Grade", val: schoolDays.reduce((s, d) => s + getAssignmentsFor(d).filter(a => a.grade !== null && a.grade < rules.passingThreshold).length, 0), color: "text-orange-500" },
-            { label: "Potential", val: fmt(schoolDays.reduce((s, d) => s + getAssignmentsFor(d).filter(a => a.status === "pending").reduce((ss, a) => ss + rewardAmountFor(a.type, rules), 0), 0), { short: true }), color: "text-green-600" },
+            { label: "Potential", val: fmt(schoolDays.reduce((s, d) => s + getAssignmentsFor(d).filter(a => a.status === "pending").reduce((ss, a) => ss + (potentialReward(a, rules) ?? 0), 0), 0), { short: true }), color: "text-green-600" },
           ].map((s, i) => (
             <div key={i} className="bg-gray-50 rounded-xl p-2">
               <p className={`text-lg font-bold ${s.color}`}>{s.val}</p>

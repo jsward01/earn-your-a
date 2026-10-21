@@ -4,6 +4,7 @@ import { ARCHIVED_MESSAGE, NO_MAKEUP, getAssignmentRow, nextMakeupState, toAssig
 import { computeAssignmentReward, getBalance, getFullRewardSettings, syncAssignmentRewardTransaction } from "../../_lib/rewards";
 import { affectsLedger, checkStudentDelete, checkStudentEdit, diffFields, fieldsFromRow, gradeError, isIsoDate, summarizeChanges, type Fields } from "../../_lib/assignmentEdits";
 import { deleteAssignmentWithHistory, getRecordedReward, recordHistory } from "../../_lib/history";
+import { classKeyOf, isTrackOnlyClass } from "../../_lib/classSettings";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -76,18 +77,24 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
 
   const changes = diffFields(before, after);
   const changed = Object.keys(changes).length > 0;
-  const relevant = affectsLedger(changes);
 
   const settings = await getFullRewardSettings(db, user.familyId);
   const ledgerBefore = await getRecordedReward(db, id);
   const historyOnly = existing.history_only === 1;
-  const ledgerAfter = relevant ? (computeAssignmentReward({ ...after, historyOnly }, settings)?.amount ?? null) : ledgerBefore;
+  // Moving work to another class takes on that class's Pays / Track only setting (and is priced again if that flips it).
+  const wasTrackOnly = existing.track_only === 1;
+  const trackOnly = classKeyOf(after.subject) === classKeyOf(before.subject)
+    ? wasTrackOnly
+    : await isTrackOnlyClass(db, existing.student_id, after.subject);
+  const relevant = affectsLedger(changes) || trackOnly !== wasTrackOnly;
+  const ledgerAfter = relevant ? (computeAssignmentReward({ ...after, historyOnly, trackOnly }, settings)?.amount ?? null) : ledgerBefore;
   const delta = (ledgerAfter ?? 0) - (ledgerBefore ?? 0);
   const balanceBefore = await getBalance(db, existing.student_id);
+  const trackNote = trackOnly === wasTrackOnly ? "" : trackOnly ? " (Track only class, no reward)" : " (class pays rewards)";
   const impact = {
     changed,
     changes,
-    summary: summarizeChanges(changes),
+    summary: summarizeChanges(changes) + trackNote,
     ledgerBefore,
     ledgerAfter,
     delta,
@@ -100,7 +107,7 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
 
   // Makeup windows only move when the outcome (status/grade) moves; a rename or new due date leaves them alone.
   const outcomeChanged = !!(changes.status || changes.grade);
-  const makeup = historyOnly
+  const makeup = historyOnly || trackOnly
     ? NO_MAKEUP
     : outcomeChanged
     ? nextMakeupState({ deadline: existing.makeup_deadline }, after.status, after.grade, settings.passingThreshold, settings.makeupWindowDays, new Date())
@@ -108,17 +115,17 @@ export const onRequestPatch: PagesFunction<Env> = async (context) => {
 
   await db
     .prepare(
-      `UPDATE assignments SET title = ?, subject = ?, type = ?, due_date = ?, status = ?, grade = ?, makeup_deadline = ?, makeup_used = ?, updated_at = datetime('now')
+      `UPDATE assignments SET title = ?, subject = ?, type = ?, due_date = ?, status = ?, grade = ?, makeup_deadline = ?, makeup_used = ?, track_only = ?, updated_at = datetime('now')
        WHERE id = ?`,
     )
-    .bind(after.title, after.subject, after.type, after.dueDate, after.status, after.grade, makeup.deadline, makeup.used, id)
+    .bind(after.title, after.subject, after.type, after.dueDate, after.status, after.grade, makeup.deadline, makeup.used, trackOnly ? 1 : 0, id)
     .run();
 
   if (relevant) {
     await syncAssignmentRewardTransaction(
       db,
       { assignmentId: id, familyId: user.familyId, studentId: existing.student_id },
-      { type: after.type as AssignmentRow["type"], status: after.status as AssignmentRow["status"], grade: after.grade, title: after.title, historyOnly },
+      { type: after.type as AssignmentRow["type"], status: after.status as AssignmentRow["status"], grade: after.grade, title: after.title, historyOnly, trackOnly },
       settings,
     );
   } else if (changes.title) {

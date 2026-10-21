@@ -86,6 +86,11 @@ export function formatAmount(amount: number, fmt: RewardFormat, opts: FormatOpti
   return `${sign}${num} ${unitWord(fmt, abs)}`;
 }
 
+/** What ungraded work could earn: null for history and Track only work, which never earn anything. */
+export function potentialReward(a: Pick<Assignment, "type" | "historyOnly" | "trackOnly">, rules: RewardRules): number | null {
+  return a.historyOnly || a.trackOnly ? null : rewardAmountFor(a.type, rules);
+}
+
 /**
  * House reward rules (amounts, penalties and pass mark come from the family's Settings; the defaults are
  * $3 assignment / $10 quiz / $20 test, 70% to pass, and a penalty of $0 / $10 / $20):
@@ -112,6 +117,11 @@ export function getRewardStatus(a: Assignment, rules: RewardRules = HOUSE_RULES)
   if (a.historyOnly) {
     if (status === "pending") return { earned: null, label: "Pending", color: "text-gray-400" };
     return { earned: 0, label: status === "missing" ? "Missing · no reward" : "History · no reward", color: "text-gray-400" };
+  }
+  // Work in a Track only class: graded and averaged, never priced (matches the server).
+  if (a.trackOnly) {
+    if (status === "pending") return { earned: null, label: "Pending · no reward", color: "text-gray-400" };
+    return { earned: 0, label: status === "missing" ? "Missing · no reward" : "Track only · no reward", color: status === "missing" ? "text-red-500" : "text-gray-400" };
   }
   if (status === "missing") {
     // Like graded cards, prefer what the ledger recorded (the setting may have changed since it was marked missing).

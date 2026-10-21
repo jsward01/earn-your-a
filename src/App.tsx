@@ -205,7 +205,7 @@ export default function App() {
           </div>
         )}
         {!isParent && view === "dashboard" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} onChanged={refreshSummary} />}
-        {!isParent && view === "rewards" && <StudentRewards summary={summary} onChanged={refreshSummary} />}
+        {!isParent && view === "rewards" && <StudentRewards summary={summary} assignments={assignments} onChanged={refreshSummary} />}
         {view === "messages" && <MessagesScreen isParent={isParent} />}
         {view === "calendar" && <CalendarView assignments={assignments} isParent={isParent} />}
         {view === "weekly" && <WeeklySummary assignments={assignments} isParent={isParent} studentName={studentName} />}

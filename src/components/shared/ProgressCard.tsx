@@ -10,10 +10,10 @@ const RANGES = [
 ] as const;
 
 /**
- * Progress over time: average grade per week (all classes or one) and net rewards per week, both by due date. Two
+ * Progress over time (parent Overview and the student's Rewards screen, same for both): average grade per week (all classes or one) and net rewards per week, both by due date. Two
  * charts rather than one with two scales. The range and class choices apply to everything below them.
  */
-export function ProgressCard({ assignments }: { assignments: Assignment[] }) {
+export function ProgressCard({ assignments, accent = "emerald" }: { assignments: Assignment[]; /** Parent green or student indigo chips. */ accent?: "emerald" | "indigo" }) {
   const rules = useRewardSettings();
   const fmt = useFormatAmount();
   const [range, setRange] = useState<"year" | "recent">("year");
@@ -35,7 +35,7 @@ export function ProgressCard({ assignments }: { assignments: Assignment[] }) {
     [assignments, since, fmt],
   );
 
-  const chip = (on: boolean) => `px-3 py-1 rounded-full text-xs font-semibold ${on ? "bg-emerald-700 text-white" : "bg-white text-gray-500 border border-gray-200"}`;
+  const chip = (on: boolean) => `px-3 py-1 rounded-full text-xs font-semibold ${on ? (accent === "indigo" ? "bg-indigo-600 text-white" : "bg-emerald-700 text-white") : "bg-white text-gray-500 border border-gray-200"}`;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">

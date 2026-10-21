@@ -239,7 +239,7 @@ export function WeeklySummary({ assignments, isParent, studentName }: WeeklySumm
                     <p className={`text-xs font-semibold ${daysAway <= 2 ? "text-red-500" : daysAway <= 4 ? "text-yellow-600" : "text-gray-400"}`}>
                       {daysAway === 0 ? "Today" : daysAway === 1 ? "Tomorrow" : `In ${daysAway}d`}
                     </p>
-                    <p className="text-xs text-indigo-500 font-semibold">{potentialReward(a, rules) === null ? "no reward" : fmt(potentialReward(a, rules)!, { short: true })}</p>
+                    <p className="text-xs text-indigo-500 font-semibold">{potentialReward(a, rules) === null ? (a.trackOnly ? "Tracking only" : "no reward") : fmt(potentialReward(a, rules)!, { short: true })}</p>
                   </div>
                 </div>
               );

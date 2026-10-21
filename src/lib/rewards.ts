@@ -120,8 +120,9 @@ export function getRewardStatus(a: Assignment, rules: RewardRules = HOUSE_RULES)
   }
   // Work in a Track only class: graded and averaged, never priced (matches the server).
   if (a.trackOnly) {
-    if (status === "pending") return { earned: null, label: "Pending · no reward", color: "text-gray-400" };
-    return { earned: 0, label: status === "missing" ? "Missing · no reward" : "Track only · no reward", color: status === "missing" ? "text-red-500" : "text-gray-400" };
+    // Worded so it still reads as work that matters (it counts toward the grade), not as "doesn't count".
+    if (status === "pending") return { earned: null, label: "Pending · Tracking only", color: "text-gray-400" };
+    return { earned: 0, label: status === "missing" ? "Missing · Tracking only" : "Tracking only", color: status === "missing" ? "text-red-500" : "text-gray-400" };
   }
   if (status === "missing") {
     // Like graded cards, prefer what the ledger recorded (the setting may have changed since it was marked missing).

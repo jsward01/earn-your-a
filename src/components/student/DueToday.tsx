@@ -76,15 +76,15 @@ export function DueToday({ assignments, onOpen, onAdd }: DueTodayProps) {
 
   const worth = (a: Assignment) => {
     const n = potentialReward(a, rules);
-    return n === null ? "no reward" : fmt(n, { signed: true, short: true });
+    return n === null ? "Tracking only" : fmt(n, { signed: true, short: true });
   };
   const riskNote = (a: Assignment) => {
-    if (a.trackOnly) return "graded, but no reward for this class";
+    if (a.trackOnly) return "counts toward your grade";
     const penalty = penaltyAmountFor(a.type, rules);
     return penalty > 0 ? `${fmt(-penalty, { short: true })} if under ${rules.passingThreshold}%` : `${rules.passingThreshold}% or better to earn it`;
   };
   const pendingRow = (a: Assignment, note = dueLabel(a.dueDate)) => (
-    <Row key={a.id} a={a} onOpen={onOpen} worth={worth(a)} worthColor="text-green-600" note={`${note} · ${riskNote(a)}`} />
+    <Row key={a.id} a={a} onOpen={onOpen} worth={worth(a)} worthColor={a.trackOnly ? "text-gray-500" : "text-green-600"} note={`${note} · ${riskNote(a)}`} />
   );
 
   // What she can still earn in the next 7 days: everything due today through day 6, plus every open makeup.

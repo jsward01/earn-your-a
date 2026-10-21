@@ -128,11 +128,11 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
 
   // Pending work splits in two: past due = waiting on the parent's grade, everything else is still coming up.
   // Work from before rewards started is on record only, so it never needs attention here (it still counts in the class averages).
-  // Track only work shows (tagged "no reward") unless the parent switched that off.
+  // Track only work shows (marked "Tracking only") unless the parent switched that off.
   const current = assignments.filter(a => !a.historyOnly && (showTrackOnly || !a.trackOnly));
   const stake = (a: Assignment, word: string) => {
     const n = potentialReward(a, rules);
-    return n === null ? "no reward" : `${fmt(n, { short: true })} ${word}`;
+    return n === null ? (a.trackOnly ? "Tracking only" : "no reward") : `${fmt(n, { short: true })} ${word}`;
   };
   const { needsGrade, comingUp: upcoming } = splitPending(current);
 
@@ -214,7 +214,6 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
                     <p className="text-sm font-semibold text-gray-800">{a.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectLight(a.subject)}`}>{a.subject}</span>
-                      {a.trackOnly && <span className="text-xs px-2 py-0.5 rounded-full border border-amber-200 text-amber-700 font-medium">Track only</span>}
                       <span className="text-xs text-gray-400 capitalize">{a.type}</span>
                     </div>
                   </div>
@@ -253,7 +252,6 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
                       <p className="text-sm font-semibold text-gray-800">{a.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectLight(a.subject)}`}>{a.subject}</span>
-                      {a.trackOnly && <span className="text-xs px-2 py-0.5 rounded-full border border-amber-200 text-amber-700 font-medium">Track only</span>}
                         <span className="text-xs text-gray-400 capitalize">{a.type}</span>
                       </div>
                     </div>
@@ -291,14 +289,13 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
                     <p className="text-sm font-semibold text-gray-800">{a.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectLight(a.subject)}`}>{a.subject}</span>
-                      {a.trackOnly && <span className="text-xs px-2 py-0.5 rounded-full border border-amber-200 text-amber-700 font-medium">Track only</span>}
                       {(a.daysLeft ?? 0) > 0 && <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${getDaysLeftColor(a.daysLeft ?? 0)}`}>⏱ {a.daysLeft}d to fix</span>}
                     </div>
                   </div>
                 </div>
                 <div className="text-right shrink-0 ml-2">
                   <p className="text-xs text-red-500 font-bold">{fmt(0)}</p>
-                  <p className="text-xs text-gray-400">{a.trackOnly ? "Track only" : `was ${fmt(potentialReward(a, rules) ?? 0, { short: true })}`}</p>
+                  <p className="text-xs text-gray-400">{a.trackOnly ? "Tracking only" : `was ${fmt(potentialReward(a, rules) ?? 0, { short: true })}`}</p>
                 </div>
               </div>
             ))}
@@ -330,7 +327,6 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
                       <p className="text-sm font-semibold text-gray-800">{a.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getSubjectLight(a.subject)}`}>{a.subject}</span>
-                      {a.trackOnly && <span className="text-xs px-2 py-0.5 rounded-full border border-amber-200 text-amber-700 font-medium">Track only</span>}
                         <span className="text-xs text-gray-400 capitalize">{a.type}</span>
                         {canMakeup && <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${getDaysLeftColor(a.daysLeft ?? 0)}`}>⏱ {a.daysLeft}d to retake</span>}
                       </div>
@@ -340,7 +336,7 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
                     <p className="text-xl font-bold text-orange-600">{a.grade}%</p>
                     {canMakeup
                       ? <p className="text-xs text-green-600 font-semibold">Retake available</p>
-                      : <p className="text-xs text-red-400">{a.trackOnly ? "No reward" : "No retake"}</p>
+                      : <p className="text-xs text-red-400">{a.trackOnly ? "Tracking only" : "No retake"}</p>
                     }
                   </div>
                 </div>

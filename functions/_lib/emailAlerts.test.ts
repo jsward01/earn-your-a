@@ -19,15 +19,15 @@ describe("localClock / digestWindow", () => {
   it("handles standard time after the November switch", () => {
     expect(localClock(new Date("2026-11-10T14:00:00Z"), "America/Denver")).toEqual({ date: "2026-11-10", hour: 7 });
   });
-  it("opens a morning window from 7 and an evening window from 6pm, closed overnight", () => {
+  it("opens a morning window from 7 and an evening window from 5pm, closed overnight", () => {
     expect(digestWindow(6)).toBeNull();
     expect(digestWindow(7)).toBe("morning");
     expect(digestWindow(10)).toBe("morning");
     expect(digestWindow(11)).toBeNull();
-    expect(digestWindow(17)).toBeNull();
-    expect(digestWindow(18)).toBe("evening");
-    expect(digestWindow(21)).toBe("evening");
-    expect(digestWindow(22)).toBeNull();
+    expect(digestWindow(16)).toBeNull();
+    expect(digestWindow(17)).toBe("evening");
+    expect(digestWindow(20)).toBe("evening");
+    expect(digestWindow(21)).toBeNull();
     expect(digestWindow(0)).toBeNull();
   });
   it("keeps quiet hours, wrapping past midnight", () => {
@@ -120,7 +120,7 @@ describe("testEmail", () => {
     const e = testEmail("Jonathan");
     expect(e.subject).toBe("Earn Your A: test email");
     expect(e.text).toContain("Hi Jonathan");
-    expect(e.text).toContain("Around 6 PM: work due tomorrow");
+    expect(e.text).toContain("Around 5 PM: work due tomorrow");
     expect(e.html).toContain("Open Earn Your A");
   });
 

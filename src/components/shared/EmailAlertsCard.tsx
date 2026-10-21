@@ -181,7 +181,7 @@ export function EmailAlertsCard({ isParent, studentName }: EmailAlertsCardProps)
       {unsavedAddr && savedAddr && <p className="text-xs text-gray-400">Save the new address first, then send a test to it.</p>}
       {testResult && <p className={`text-sm ${testResult.ok ? "text-green-600" : "text-red-500"}`}>{testResult.text}</p>}
       <p className="text-xs text-gray-400">
-        "Due today" and retake emails go out around 7 AM, "Due tomorrow" around 6 PM, and payout emails within
+        "Due today" and retake emails go out around 7 AM, "Due tomorrow" around 5 PM, and payout emails within
         about 15 minutes. Alerts always show on this screen too. Text messages are coming later.
       </p>
     </div>

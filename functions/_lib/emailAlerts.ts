@@ -4,7 +4,7 @@
  *
  * Timing follows the hints on the Alerts → Settings card:
  * - morning (from 7am family time): work due today + retake windows with 2 days left
- * - evening (from 6pm): work due tomorrow
+ * - evening (from 5pm): work due tomorrow
  * - payouts: as soon as the next run sees them (every 15 minutes) — a student's request goes to the parents, an
  *   approval/denial goes to the student.
  * - quiet hours (each person's own, default 8pm–6am): nothing is sent. A digest that falls inside them is skipped;
@@ -15,7 +15,7 @@ import { formatAmount, type RewardFormat } from "../../src/lib/rewards";
 export type DigestKind = "morning" | "evening";
 
 export const MORNING_HOUR = 7;
-export const EVENING_HOUR = 18;
+export const EVENING_HOUR = 17;
 /** A window stays open a few hours so a missed run (or a Worker outage) still sends, but not at midnight. */
 const WINDOW_HOURS = 4;
 /** Retake reminder goes out when this many days are left (matches the card's "has 2 days left"). */
@@ -220,7 +220,7 @@ export function testEmail(firstName: string): Email {
       heading: "What you'll get",
       lines: [
         "Around 7 AM: work due today, and retake windows closing in 2 days",
-        "Around 6 PM: work due tomorrow",
+        "Around 5 PM: work due tomorrow",
         "Payout requests and approvals, within about 15 minutes",
         "No email on days with nothing to say",
       ],

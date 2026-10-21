@@ -8,6 +8,7 @@ import { daysUntilDate } from "../../lib/dates";
 import { splitPending } from "../../lib/assignments";
 import { ImportModal } from "./ImportModal";
 import { ClassAverages } from "../shared/ClassAverages";
+import { ProgressCard } from "../shared/ProgressCard";
 import { ClassSettingModal } from "./ClassSettingModal";
 import { classKey } from "../../lib/import/normalize";
 
@@ -351,6 +352,8 @@ export function ParentOverview({ assignments, summary, onChanged, onEdit, onAdd 
       )}
 
       {filter === "all" && <ClassAverages assignments={assignments} classModes={classModes} onClassTap={setEditingClass} />}
+
+      {filter === "all" && <ProgressCard assignments={assignments} />}
 
       {filter === "all" && classSettings?.classes.some(c => c.mode === "track") && (
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex items-center justify-between gap-3">

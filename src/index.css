@@ -137,3 +137,24 @@ html[data-theme="dark"] .keep-palette {
   --color-gray-800: oklch(27.8% .033 256.848);
   --color-gray-900: oklch(21% .034 264.665);
 }
+
+/* Chart tokens (WeekChart). One blue series; red only for weeks that lost money. Validated for colorblind separation and
+   3:1 contrast against the white card (light) and #1a1e26 (dark) with the dataviz palette checker. */
+.viz {
+  --viz-series: #2a78d6;
+  --viz-negative: #d03b3b;
+  --viz-surface: #ffffff;
+  --viz-ink: #1f2937;
+  --viz-muted: #6b7280;
+  --viz-grid: #ecebe7;
+  --viz-axis: #c3c2b7;
+}
+html[data-theme="dark"] .viz {
+  --viz-series: #3987e5;
+  --viz-negative: #e66767;
+  --viz-surface: #1a1e26;
+  --viz-ink: #e2e5ec;
+  --viz-muted: #9aa3b2;
+  --viz-grid: #2a303b;
+  --viz-axis: #444b58;
+}

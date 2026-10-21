@@ -317,7 +317,7 @@ Commit `97975d5` ("Wire rewards/payouts to D1, add real branding, add password r
 
 ## Immediate Next Step
 
-**Where we left off (end of the Oct 19, 2026 evening session). Everything is LIVE on earnyoura.com** (last code deploy `d1f7715`); all migrations through `0015` are applied to remote D1 (Oct 19 needed none); 746 tests pass. Only CLAUDE.md commits may be unpushed (check `git log origin/main..HEAD`). The session-by-session notes below run oldest → newest; START HERE is the current to-do.
+**Where we left off (end of the Oct 20, 2026 session). Everything is LIVE on earnyoura.com** (last code deploy `6576ed0`, asset `index-EY88kpT4.js`); all migrations through `0016` are applied to remote D1; 847 tests pass. Only CLAUDE.md commits may be unpushed (check `git log origin/main..HEAD`). The session-by-session notes below run oldest → newest; START HERE is the current to-do.
 
 **Shipped Oct 5 (details in "Done"):**
 1. **Adjustment entries:** ± Adjust on the Balance page (migration 0010).
@@ -358,12 +358,13 @@ Commit `97975d5` ("Wire rewards/payouts to D1, add real branding, add password r
 
 **Oct 19 evening:** the recalculation feature is done and live. It was built as a button + pop-up (`62ad68e`), used once to give Susana her **+$86** catch-up, and then **$86 was paid out** (her total paid is $235 as planned; balance $20 = the holdback). Then redesigned per Jonathan (`63a0134`: no button; saving a reward/penalty amount asks **Starting now** or **From a date**), and fixed to reload the header balance without a page refresh (`d1f7715`). Jonathan confirmed both live. Semester 2 started **Mon Oct 12, 2026**.
 
-**▶ START HERE (next session):**
-0. **Oct 20 follow-ups:** (a) set Spanish II / CE Computer Tech to Track only if wanted (both are Leave out now); (b) after the test-email push, Jonathan taps **Send test email** and checks inbox + spam; Susana does the same on her school address, and if it never arrives, switch her to a personal address.
-1. **Archive/lock check:** Jonathan pastes the Campus Assignments list and taps Review **without importing**. Paid-out work should show as "Already up to date", with nothing showing as New or Updates for paid items. Both payouts (Oct 16 and Oct 19) archived her graded work.
-2. **EPIC/Spanish:** on her next real import, tap both class chips so they show as "Left out"; then `SELECT class_name FROM excluded_classes` (read-only, remote).
-3. **Emails:** `SELECT * FROM email_log` (read-only, remote). Did the digests and the payout emails (Oct 16 and Oct 19 payouts) send? Check Gmail and Susana's school address (details in the Oct 16 checklist below).
-4. Then the "Then, in suggested order" list below. **Progress line graphs** (#6) is the next feature Jonathan is excited about.
+**Oct 20 session (all LIVE; details in Done):** Pays / **Track only** / Leave out per class (migration `0016`); **Send test email** button (Pages secret `RESEND_API_KEY`, key `earn-your-a-website` in Jonathan's Proton Pass); **Progress graphs** for parents (Overview) and Susana (Rewards), always on by Jonathan's choice (no parent switch); Track only work labeled **"Tracking only"** / "counts toward your grade" instead of "no reward". Jonathan set **Spanish II** and **EPIC** (CE / Computer Tech I A+) to Track only himself and says it works great. His test email arrived; Resend shows Susana's two payout emails **Delivered** to her school server.
+
+**▶ START HERE (next session, Oct 21):**
+1. **Susana's emails:** Jonathan is asking her whether she got the Oct 16 / Oct 19 "payout approved" emails (school address `@lpsk12.org`). Not seen → check her spam/junk; still nothing → switch her to a personal address in Alerts → ⚙️ Settings, then have her tap **Send test email**. Daily digests start on their own once upcoming work is imported (nothing was due, so none were sent). Nicole's email is off until she turns it on.
+2. **Archive/lock check:** Jonathan pastes the Campus Assignments list and taps Review **without importing**. Paid-out work should show as "Already up to date", nothing paid as New or Updates. (Carried over.)
+3. Glance at the live Progress card with real data (earnings by due date; the Sep 21 back-fill should be spread over its weeks).
+4. Then the "Then, in suggested order" list below (#3 AI-endpoint limits before other families, #5 bonus/late rules, login rate limiting).
 
 **Oct 16 checklist (carried over):**
 1. **First real payout:** did the +$86 adjustment and "Pay out now" happen? Check `SELECT * FROM payout_requests` and `SELECT kind, amount, reason FROM reward_transactions WHERE kind = 'adjustment'` (read-only, remote). Then check the archive + lock: paste the Campus list, Review without importing, and paid-out work should show as "Already up to date" (Jonathan asked about this). None of today's features have been seen live while logged in as a parent.

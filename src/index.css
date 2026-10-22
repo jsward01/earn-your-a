@@ -11,7 +11,18 @@
  */
 /* The chosen theme (not the OS) decides the browser's own defaults: default text color, form controls, scrollbars.
    A "color-scheme: light dark" meta tag followed the OS instead, so choosing Light on a dark OS gave white-on-white text. */
-html[data-theme="light"] { color-scheme: light; }
+html[data-theme="light"] {
+  color-scheme: light;
+  /* Light mode was near-white on white (Jonathan, Oct 21 2026: "extremely bright and very white"). A cool gray page
+     (gray-50) lets the white cards stand out, borders (-100/-200) show, and the secondary text (-300..-500, mostly
+     text-gray-400 at 2.6:1 on white) reads at 4.5:1 or better. */
+  --color-gray-50: #e9ecf2;
+  --color-gray-100: #dde1e8;
+  --color-gray-200: #cbd1db;
+  --color-gray-300: #9aa2b0;
+  --color-gray-400: #646c7a;
+  --color-gray-500: #4b5361;
+}
 
 html[data-theme="dark"] {
   color-scheme: dark;

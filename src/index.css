@@ -64,6 +64,9 @@ html[data-theme="dark"] body { background-color: var(--color-gray-50); color: va
 html[data-theme="dark"] .bg-white { background-color: #1a1e26; }
 html[data-theme="dark"] .bg-white\/95 { background-color: rgb(26 30 38 / 0.95); }
 html[data-theme="dark"] .border-white { border-color: #1a1e26; }
+/* Dropdown lists: options inherit the light text color, but Chrome on Linux draws the open list white even under
+   color-scheme: dark, which left near-white text on white. Give the list the card background explicitly. */
+html[data-theme="dark"] option { background-color: #1a1e26; color: var(--color-gray-800); }
 
 /* Text that was dark-on-pale becomes light-on-dark. */
 html[data-theme="dark"] :is(.text-red-500, .text-red-600) { color: #f87171; }

@@ -3,6 +3,7 @@ import type { Assignment, AssignmentPlanForm, SavedPlan } from "../../types";
 import { deletePlan, fetchPlans, generateAssignmentPlan, setPlanChecked } from "../../lib/api";
 import { subjectOptions } from "../../lib/subjects";
 import { formatDay } from "../../lib/dates";
+import robot from "../../assets/ai-robot.webp";
 import { SubjectPicker } from "../shared/SubjectPicker";
 
 type Step = "form" | "plan";
@@ -99,12 +100,13 @@ export function AIBreakdown({ assignments }: { assignments: Assignment[] }) {
       {step === "form" && (
         <>
           <div className="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-3xl p-5 text-white shadow-lg">
-            <div className="flex items-center gap-3 mb-2">
-              <span className="text-3xl">🤖</span>
-              <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
                 <p className="font-bold text-lg">AI Assignment Planner</p>
                 <p className="text-violet-200 text-xs">Break any assignment into a step-by-step plan</p>
               </div>
+              {/* Jonathan's robot (Oct 21, 2026), on the right; its white background was made transparent. */}
+              <img src={robot} alt="" className="h-24 w-auto -my-3 shrink-0 drop-shadow-lg" />
             </div>
           </div>
 

@@ -13,7 +13,7 @@ import {
   type RewardSummary,
   type RewardTransaction,
 } from "../../lib/api";
-import { getSubjectLight } from "../../lib/styles";
+import { getSubjectLight, bannerGradient } from "../../lib/styles";
 
 interface StudentRewardsProps {
   summary: RewardSummary | null;
@@ -114,7 +114,7 @@ export function StudentRewards({ summary, assignments, onChanged }: StudentRewar
 
   return (
     <div className="pb-4 px-4 pt-4 space-y-4">
-      <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-3xl p-5 text-white shadow-lg">
+      <div className={`${bannerGradient(false)} rounded-3xl p-5 text-white shadow-lg`}>
         <p className="text-indigo-200 text-sm">Current Balance</p>
         <p className="text-4xl font-bold mt-1">{fmt(balance)}</p>
         <div className="flex gap-4 mt-3 text-sm">

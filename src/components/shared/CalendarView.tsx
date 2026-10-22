@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Assignment } from "../../types";
 import { getRewardStatus, potentialReward } from "../../lib/rewards";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
-import { getSubjectLight } from "../../lib/styles";
+import { getSubjectLight, bannerGradient } from "../../lib/styles";
 
 interface CalendarViewProps {
   assignments: Assignment[];
@@ -123,7 +123,7 @@ export function CalendarView({ assignments, isParent }: CalendarViewProps) {
 
   return (
     <div className="pb-28 pt-4 space-y-4">
-      <div className={`${accentBg} mx-4 rounded-3xl px-5 py-4 text-white shadow-lg`}>
+      <div className={`${bannerGradient(isParent)} mx-4 rounded-3xl px-5 py-4 text-white shadow-lg`}>
         <div className="flex items-center justify-between mb-1">
           <button onClick={prevWindow} className="w-9 h-9 bg-white/20 rounded-full flex items-center justify-center text-xl font-bold">‹</button>
           <div className="text-center">

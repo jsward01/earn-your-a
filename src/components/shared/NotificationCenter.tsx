@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { bannerGradient } from "../../lib/styles";
 import type { Assignment, AppNotification } from "../../types";
 import { NOTIFICATION_TYPES, generateNotifications } from "../../lib/notifications";
 import { useRewardSettings } from "../../lib/rewardSettingsContext";
@@ -51,7 +52,6 @@ export function NotificationCenter({ assignments, isParent, payoutPending, stude
     [assignments, isParent, payoutPending, studentName, pendingPayout, rules, readIds, dismissedIds],
   );
 
-  const accentBg = isParent ? "bg-emerald-700" : "bg-indigo-600";
 
   // Until the saved state arrives, don't flash already-read alerts as new.
   const unreadCount = stateLoaded ? notifications.filter(n => !n.read).length : 0;
@@ -80,7 +80,7 @@ export function NotificationCenter({ assignments, isParent, payoutPending, stude
 
   return (
     <div className="pb-28 pt-4 space-y-4 px-4">
-      <div className={`${accentBg} rounded-3xl px-5 py-4 text-white shadow-lg`}>
+      <div className={`${bannerGradient(isParent)} rounded-3xl px-5 py-4 text-white shadow-lg`}>
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs opacity-70 font-semibold uppercase tracking-wide">Notifications</p>

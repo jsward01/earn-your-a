@@ -2,7 +2,7 @@ import type { Assignment } from "../../types";
 import { groupDueWork } from "../../lib/assignments";
 import { penaltyAmountFor, potentialReward } from "../../lib/rewards";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
-import { getSubjectColor } from "../../lib/styles";
+import { getSubjectColor, bannerGradient } from "../../lib/styles";
 import { daysUntilDate } from "../../lib/dates";
 
 interface DueTodayProps {
@@ -95,7 +95,7 @@ export function DueToday({ assignments, onOpen, onAdd }: DueTodayProps) {
 
   return (
     <div className="px-4 pt-4 pb-20 space-y-5">
-      <div className="bg-indigo-600 rounded-3xl p-5 text-white shadow">
+      <div className={`${bannerGradient(false)} rounded-3xl p-5 text-white shadow`}>
         <p className="text-sm opacity-80">Up for grabs this week</p>
         <p className="text-4xl font-bold mt-1">{fmt(upForGrabs, { short: true })}</p>
         <p className="text-sm opacity-80 mt-2">

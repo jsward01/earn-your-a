@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Assignment } from "../../types";
-import { getSubjectLight } from "../../lib/styles";
+import { getSubjectLight, bannerGradient } from "../../lib/styles";
 import { subjectOptions } from "../../lib/subjects";
 import { fetchRewardTransactions, type RewardTransaction } from "../../lib/api";
 import { potentialReward } from "../../lib/rewards";
@@ -90,7 +90,7 @@ export function WeeklySummary({ assignments, isParent, studentName }: WeeklySumm
   return (
     <div className="pb-28 pt-4 space-y-4 px-4">
 
-      <div className={`${accentBg} rounded-3xl p-5 text-white shadow-lg`}>
+      <div className={`${bannerGradient(isParent)} rounded-3xl p-5 text-white shadow-lg`}>
         <div className="flex items-center justify-between mb-1">
           <div>
             <p className="text-xs opacity-70 font-semibold uppercase tracking-wide">Earn Your A</p>

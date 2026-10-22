@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { bannerGradient } from "../../lib/styles";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
 import { Avatar } from "../shared/Avatar";
 import { AvatarPicker } from "../shared/AvatarPicker";
@@ -27,7 +28,7 @@ export function StudentProfile({ userId, name, avatar, onAvatarChanged, accent, 
 
   return (
     <div className="pb-4 px-4 pt-4 space-y-4">
-      <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-3xl p-6 text-white text-center shadow-lg">
+      <div className={`${bannerGradient(false)} rounded-3xl p-6 text-white text-center shadow-lg`}>
         <button onClick={() => setPicking(true)} className="relative mx-auto mb-3 block" aria-label="Change your profile picture">
           <Avatar avatar={avatar} name={name} size={80} className="ring-4 ring-white/30" />
           <span className="absolute -bottom-0.5 -right-0.5 bg-white text-gray-700 rounded-full w-7 h-7 text-sm flex items-center justify-center shadow">✏️</span>

@@ -37,3 +37,11 @@ export function getDaysLeftColor(daysLeft: number): string {
   if (daysLeft <= 3) return "bg-yellow-100 text-yellow-700 border-yellow-300";
   return "bg-green-100 text-green-700 border-green-300";
 }
+
+/**
+ * The big colored banner at the top of a page: a diagonal gradient like the AI Planner's, ending in the person's
+ * accent color (src/lib/accent.ts), so it reads as separate from the solid top bar (Jonathan, Oct 21 2026).
+ */
+export function bannerGradient(isParent: boolean): string {
+  return isParent ? "bg-gradient-to-br from-teal-600 to-emerald-700" : "bg-gradient-to-br from-violet-600 to-indigo-600";
+}

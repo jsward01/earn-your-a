@@ -26,7 +26,9 @@ export function AppHeader({ isParent, totalEarned, viewedStudent, payoutPending,
   const selected = students.find(s => s.id === selectedStudentId);
 
   return (
-    <div className={`${isParent ? "bg-emerald-700" : "bg-indigo-600"} text-white px-4 py-4 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_1fr] items-center gap-y-3 shadow-lg`}>
+    // Two shades darker than the banners on the page (indigo-600 / emerald-700), with a dark bottom edge, so a banner
+    // scrolling up under it stays visibly separate (Jonathan, Oct 21 2026).
+    <div className={`${isParent ? "bg-emerald-900" : "bg-indigo-800"} border-b-2 border-black/40 text-white px-4 py-4 grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_1fr] items-center gap-y-3 shadow-lg`}>
       <div className="flex items-center gap-3 min-w-0">
         <img src={logo} alt="Earn Your A" className="h-14 drop-shadow" />
         {/* On phones the row is too tight for the label; the logo and header colour already say which dashboard this is. */}
@@ -42,7 +44,7 @@ export function AppHeader({ isParent, totalEarned, viewedStudent, payoutPending,
           <select
             value={selectedStudentId ?? ""}
             onChange={e => onSelectStudent(e.target.value)}
-            className="bg-emerald-800 text-white text-sm font-semibold rounded-xl px-3 py-2 border border-emerald-500 focus:outline-none focus:ring-2 focus:ring-white [&>option]:bg-white [&>option]:text-gray-900"
+            className="bg-emerald-950 text-white text-sm font-semibold rounded-xl px-3 py-2 border border-emerald-600 focus:outline-none focus:ring-2 focus:ring-white [&>option]:bg-white [&>option]:text-gray-900"
           >
             {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
@@ -54,7 +56,7 @@ export function AppHeader({ isParent, totalEarned, viewedStudent, payoutPending,
         <button
           onClick={onBalanceClick}
           aria-label="View grades and balance"
-          className={`${isParent ? "bg-emerald-800 hover:bg-emerald-900" : "bg-indigo-700 hover:bg-indigo-800"} rounded-xl px-3 py-2 text-center`}
+          className={`${isParent ? "bg-emerald-950/70 hover:bg-emerald-950" : "bg-indigo-950/60 hover:bg-indigo-950"} rounded-xl px-3 py-2 text-center`}
         >
           <p className={`${isParent ? "text-emerald-300" : "text-indigo-300"} text-xs`}>
             {showSwitcher && selected ? `${selected.name.split(" ")[0]}'s Balance` : "Balance"} ›

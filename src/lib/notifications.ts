@@ -17,7 +17,8 @@ export function generateNotifications(
   isParent: boolean,
   payoutPending: boolean,
   studentName: string,
-  pendingPayoutAmount: number | null,
+  /** The pending request once loaded: its amount for the text, its id so read/dismissed sticks to this request only. */
+  pendingPayout: { id: string; amount: number } | null,
   rules: RewardRules,
 ): AppNotification[] {
   const notes: AppNotification[] = [];
@@ -71,9 +72,9 @@ export function generateNotifications(
   });
 
   if (payoutPending) {
-    const amountText = pendingPayoutAmount !== null ? formatAmount(pendingPayoutAmount, rules) : "a payout";
+    const amountText = pendingPayout ? formatAmount(pendingPayout.amount, rules) : "a payout";
     notes.push({
-      id: "payout-pending", type: "payout", read: false, time: "Just now",
+      id: pendingPayout ? `payout-${pendingPayout.id}` : "payout-pending", type: "payout", read: false, time: "Just now",
       title: isParent ? `Payout Request from ${studentName}` : "Payout Request Sent!",
       body: isParent
         ? `${studentName} has requested a payout of ${amountText}. Tap to review and approve, delay, or deny.`
@@ -86,8 +87,12 @@ export function generateNotifications(
   const netEarnings = assignments.reduce((s, a) => s + (getRewardStatus(a, rules).earned ?? 0), 0);
   const openMakeups = assignments.filter(a => a.makeupAvailable && (a.daysLeft ?? 0) > 0).length;
 
+  // One per week, so reading or dismissing this week's doesn't hide next week's.
+  const sunday = new Date();
+  sunday.setDate(sunday.getDate() - sunday.getDay());
+  const week = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, "0")}-${String(sunday.getDate()).padStart(2, "0")}`;
   notes.push({
-    id: "weekly-summary", type: "weekly", read: true, time: "Last Sunday",
+    id: `weekly-${week}`, type: "weekly", read: true, time: "Last Sunday",
     title: "Weekly Summary Ready",
     body: `Your week in review is ready. Net earnings: ${formatAmount(netEarnings, rules, { short: true })} • Avg grade: ${avgGrade}% • ${openMakeups} makeup window${openMakeups === 1 ? "" : "s"} open.`,
   });

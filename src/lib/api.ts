@@ -183,6 +183,20 @@ export interface PayoutRequestRow {
   resolvedAt: string | null;
 }
 
+/** The signed-in person's read and dismissed alerts (Alerts page). */
+export async function fetchNotificationState(): Promise<{ read: string[]; dismissed: string[] }> {
+  return (await parseJsonOrThrow(await fetch("/api/notification-state"))) as { read: string[]; dismissed: string[] };
+}
+
+export async function saveNotificationState(ids: string[], state: "read" | "dismissed"): Promise<void> {
+  const res = await fetch("/api/notification-state", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids, state }),
+  });
+  await parseJsonOrThrow(res);
+}
+
 export async function fetchPayouts(): Promise<PayoutRequestRow[]> {
   const res = await fetch(scoped("/api/payouts"));
   return (await parseJsonOrThrow(res)) as PayoutRequestRow[];

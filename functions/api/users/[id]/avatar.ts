@@ -20,18 +20,17 @@ interface PutBody {
   avatar?: string | null;
 }
 
-/** Parent-only: set (or clear, with `null`) a student's profile picture. */
+/**
+ * Student-only: set (or clear, with `null`) your own profile picture. It was parent-only until Oct 21, 2026, when
+ * Jonathan moved it to the student ("this should be done by the student and not the parent").
+ */
 export const onRequestPut: PagesFunction<Env> = async (context) => {
   const user = await getSessionUser(context.env.DB, context.request);
   if (!user) return json({ error: "Not authenticated" }, 401);
-  if (user.role !== "parent") return json({ error: "Only a parent can change a profile picture" }, 403);
+  if (user.role !== "student") return json({ error: "Students choose their own profile picture" }, 403);
 
   const id = String(context.params.id);
-  const target = await context.env.DB
-    .prepare("SELECT id FROM users WHERE id = ? AND family_id = ? AND role = 'student'")
-    .bind(id, user.familyId)
-    .first<{ id: string }>();
-  if (!target) return json({ error: "Student not found" }, 404);
+  if (id !== user.id) return json({ error: "You can only change your own picture" }, 403);
 
   let body: PutBody;
   try {

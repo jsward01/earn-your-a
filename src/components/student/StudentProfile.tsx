@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
+import { Avatar } from "../shared/Avatar";
+import { AvatarPicker } from "../shared/AvatarPicker";
 import { AppearanceCard } from "../shared/AppearanceCard";
 
 const CONNECTED_ACCOUNTS = [
@@ -8,17 +11,33 @@ const CONNECTED_ACCOUNTS = [
 ];
 
 interface StudentProfileProps {
+  userId: string;
   name: string;
+  /** null until the reward summary loads, or when no picture has been chosen. */
+  avatar: string | null;
+  /** After a new picture is saved, so the header and this page pick it up. */
+  onAvatarChanged: () => void;
 }
 
-export function StudentProfile({ name }: StudentProfileProps) {
+export function StudentProfile({ userId, name, avatar, onAvatarChanged }: StudentProfileProps) {
+  const [picking, setPicking] = useState(false);
+
   return (
     <div className="pb-4 px-4 pt-4 space-y-4">
       <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl p-6 text-white text-center shadow-lg">
-        <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl mx-auto mb-3">👩‍🎓</div>
+        <button onClick={() => setPicking(true)} className="relative mx-auto mb-3 block" aria-label="Change your profile picture">
+          <Avatar avatar={avatar} name={name} size={80} className="ring-4 ring-white/30" />
+          <span className="absolute -bottom-0.5 -right-0.5 bg-white text-gray-700 rounded-full w-7 h-7 text-sm flex items-center justify-center shadow">✏️</span>
+        </button>
         <p className="text-xl font-bold">{name}</p>
         <p className="text-indigo-200 text-sm">Student</p>
+        <button onClick={() => setPicking(true)} className="mt-3 bg-white/20 hover:bg-white/30 rounded-xl px-3 py-1.5 text-xs font-semibold">
+          {avatar ? "Change picture" : "Choose a picture"}
+        </button>
       </div>
+      {picking && (
+        <AvatarPicker student={{ id: userId, name, avatar }} onClose={() => setPicking(false)} onSaved={onAvatarChanged} />
+      )}
       <AppearanceCard />
       <ChangePasswordCard />
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">

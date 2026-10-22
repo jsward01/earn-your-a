@@ -238,7 +238,7 @@ export default function App() {
         {view === "weekly" && <WeeklySummary assignments={assignments} isParent={isParent} studentName={studentName} />}
         {view === "notifications" && <NotificationCenter key={settingsLoaded ? "loaded" : "defaults"} assignments={assignments} isParent={isParent} payoutPending={payoutPending} studentName={studentName} />}
         {!isParent && view === "ai" && <AIBreakdown assignments={assignments} />}
-        {!isParent && view === "profile" && <StudentProfile name={user.name} />}
+        {!isParent && view === "profile" && <StudentProfile userId={user.id} name={user.name} avatar={summary?.studentAvatar ?? null} onAvatarChanged={refreshSummary} />}
         {view === "balance" && (
           <BalancePage
             assignments={assignments}

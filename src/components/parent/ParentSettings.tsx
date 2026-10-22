@@ -6,7 +6,6 @@ import { ChangePasswordCard } from "../shared/ChangePasswordCard";
 import { AppearanceCard } from "../shared/AppearanceCard";
 import { Avatar } from "../shared/Avatar";
 import { DEFAULT_REWARD_SETTINGS, unitWord } from "../../lib/rewards";
-import { AvatarPicker } from "./AvatarPicker";
 import { RepriceModal } from "./RepriceModal";
 
 interface ParentSettingsProps {
@@ -171,7 +170,6 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved, onRew
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addResult, setAddResult] = useState<PasswordResetResult | null>(null);
-  const [pickingFor, setPickingFor] = useState<FamilyAccount | null>(null);
 
   function update<K extends keyof RewardSettings>(key: K, val: RewardSettings[K]) {
     setSettings({ ...settings, [key]: val });
@@ -388,11 +386,9 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved, onRew
                 const canReset = a.id !== user.id && (a.role === "student" || user.isAdmin);
                 return (
                   <div key={a.id} className="flex items-start gap-3">
+                    {/* Students pick their own picture on their Profile page (Oct 21, 2026). */}
                     {a.role === "student" ? (
-                      <button onClick={() => setPickingFor(a)} className="relative shrink-0" aria-label={`Change ${a.name}'s picture`}>
-                        <Avatar avatar={a.avatar} name={a.name} size={44} />
-                        <span className="absolute -bottom-0.5 -right-0.5 bg-white border border-gray-200 rounded-full w-5 h-5 text-[10px] flex items-center justify-center">✏️</span>
-                      </button>
+                      <Avatar avatar={a.avatar} name={a.name} size={44} />
                     ) : (
                       <Avatar avatar={null} name={a.name} size={44} muted />
                     )}
@@ -516,14 +512,6 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved, onRew
         <RepriceModal
           onClose={() => setAskReprice(false)}
           onApplied={() => { setRepriceNote("✓ Recalculated. The new amounts show on the Balance page."); onRewardsRecalculated(); }}
-        />
-      )}
-
-      {pickingFor && (
-        <AvatarPicker
-          student={pickingFor}
-          onClose={() => setPickingFor(null)}
-          onSaved={() => { loadAccounts(); onStudentsChanged(); }}
         />
       )}
 

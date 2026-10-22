@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { PRESET_AVATARS, presetAvatarValue } from "../../data/avatars";
 import { setStudentAvatar } from "../../lib/api";
 import { fileToAvatarDataUrl } from "../../lib/avatarImage";
-import { Avatar } from "../shared/Avatar";
+import { Avatar } from "./Avatar";
 
 interface AvatarPickerProps {
   student: { id: string; name: string; avatar: string | null };

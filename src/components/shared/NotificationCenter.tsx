@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Assignment, AppNotification } from "../../types";
 import { NOTIFICATION_TYPES, generateNotifications } from "../../lib/notifications";
-import { formatAmount } from "../../lib/rewards";
 import { useRewardSettings } from "../../lib/rewardSettingsContext";
-import { fetchPayouts } from "../../lib/api";
+import { fetchNotificationState, fetchPayouts, saveNotificationState } from "../../lib/api";
 import { EmailAlertsCard } from "./EmailAlertsCard";
 
 interface NotificationCenterProps {
@@ -17,37 +16,67 @@ const FILTER_TABS = ["all", "unread", "due1day", "dueToday", "makeup", "payout",
 
 export function NotificationCenter({ assignments, isParent, payoutPending, studentName }: NotificationCenterProps) {
   const rules = useRewardSettings();
-  const [notifications, setNotifications] = useState<AppNotification[]>(() =>
-    generateNotifications(assignments, isParent, payoutPending, studentName, null, rules),
-  );
+  const [pendingPayout, setPendingPayout] = useState<{ id: string; amount: number } | null>(null);
+  // What this person has read or dismissed, saved on the server so it survives leaving the page (and other devices).
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [stateLoaded, setStateLoaded] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
   const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    fetchNotificationState()
+      .then(s => { setReadIds(new Set(s.read)); setDismissedIds(new Set(s.dismissed)); })
+      .catch(err => console.error("Failed to load read alerts", err))
+      .finally(() => setStateLoaded(true));
+  }, []);
 
   useEffect(() => {
     if (!payoutPending) return;
     fetchPayouts()
       .then(payouts => {
-        const amount = payouts.find(p => p.status === "pending")?.amount ?? null;
-        if (amount === null) return;
-        const amountText = formatAmount(amount, rules);
-        setNotifications(prev => prev.map(n => n.id !== "payout-pending" ? n : {
-          ...n,
-          body: isParent
-            ? `${studentName} has requested a payout of ${amountText}. Tap to review and approve, delay, or deny.`
-            : `Your payout request of ${amountText} is waiting for parent approval.`,
-        }));
+        const p = payouts.find(x => x.status === "pending");
+        if (p) setPendingPayout({ id: p.id, amount: p.amount });
       })
       .catch(err => console.error("Failed to load payouts", err));
-  }, [payoutPending, isParent, studentName, rules]);
+  }, [payoutPending]);
+
+  const notifications: AppNotification[] = useMemo(
+    () =>
+      generateNotifications(assignments, isParent, payoutPending, studentName, pendingPayout, rules)
+        .filter(n => !dismissedIds.has(n.id))
+        .map(n => (readIds.has(n.id) ? { ...n, read: true } : n))
+        .sort((a, b) => (a.read === b.read ? 0 : a.read ? 1 : -1)),
+    [assignments, isParent, payoutPending, studentName, pendingPayout, rules, readIds, dismissedIds],
+  );
 
   const accentBg = isParent ? "bg-emerald-700" : "bg-indigo-600";
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  // Until the saved state arrives, don't flash already-read alerts as new.
+  const unreadCount = stateLoaded ? notifications.filter(n => !n.read).length : 0;
   const filtered = filter === "all" ? notifications : filter === "unread" ? notifications.filter(n => !n.read) : notifications.filter(n => n.type === filter);
 
-  function markRead(id: string) { setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n)); }
-  function markAllRead() { setNotifications(prev => prev.map(n => ({ ...n, read: true }))); }
-  function dismiss(id: string) { setNotifications(prev => prev.filter(n => n.id !== id)); }
+  // Shown at once, saved in the background; a failed save says so (the alert would come back on the next visit).
+  function persist(ids: string[], state: "read" | "dismissed") {
+    setSaveError(null);
+    saveNotificationState(ids, state).catch(() => setSaveError("Couldn't save that. It may show as new again next time."));
+  }
+  function markRead(id: string) {
+    if (notifications.find(n => n.id === id)?.read) return;
+    setReadIds(prev => new Set(prev).add(id));
+    persist([id], "read");
+  }
+  function markAllRead() {
+    const ids = notifications.filter(n => !n.read).map(n => n.id);
+    if (ids.length === 0) return;
+    setReadIds(prev => new Set([...prev, ...ids]));
+    persist(ids, "read");
+  }
+  function dismiss(id: string) {
+    setDismissedIds(prev => new Set(prev).add(id));
+    persist([id], "dismissed");
+  }
 
   return (
     <div className="pb-28 pt-4 space-y-4 px-4">
@@ -89,18 +118,20 @@ export function NotificationCenter({ assignments, isParent, payoutPending, stude
           ))}
         </div>
       </div>
+      {saveError && <p className="text-xs text-red-500 text-center">{saveError}</p>}
       {unreadCount > 0 && (
         <button onClick={markAllRead} className="text-xs text-indigo-500 font-semibold w-full text-right -mt-2">Mark all as read</button>
       )}
 
       <div className="space-y-3">
-        {filtered.length === 0 && (
+        {!stateLoaded && <p className="text-center py-12 text-sm text-gray-400">Loading…</p>}
+        {stateLoaded && filtered.length === 0 && (
           <div className="text-center py-12 text-gray-400">
             <p className="text-4xl mb-3">🔔</p>
             <p className="font-medium">No notifications here</p>
           </div>
         )}
-        {filtered.map(n => {
+        {stateLoaded && filtered.map(n => {
           const t = NOTIFICATION_TYPES[n.type];
           return (
             <div key={n.id} onClick={() => markRead(n.id)}

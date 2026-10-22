@@ -19,7 +19,8 @@ export function AIBreakdown({ assignments }: { assignments: Assignment[] }) {
   const [plans, setPlans] = useState<SavedPlan[] | null>(null);
   const [plansError, setPlansError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  // The plan waiting on the delete pop-up (from its own page or from its row in the list).
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [planError, setPlanError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -70,19 +71,23 @@ export function AIBreakdown({ assignments }: { assignments: Assignment[] }) {
     }
   }
 
-  async function removePlan() {
-    if (!current) return;
+  async function removePlan(id: string) {
+    setConfirmDeleteId(null);
     try {
-      await deletePlan(current.id);
-      setPlans(prev => prev?.filter(p => p.id !== current.id) ?? prev);
-      setConfirmDelete(false);
-      setOpenId(null);
-      setStep("form");
+      await deletePlan(id);
+      setPlans(prev => prev?.filter(p => p.id !== id) ?? prev);
+      if (openId === id) {
+        setOpenId(null);
+        setStep("form");
+      }
     } catch (err) {
-      setConfirmDelete(false);
-      setPlanError(err instanceof Error ? err.message : "Couldn't delete the plan. Please try again.");
+      const message = err instanceof Error ? err.message : "Couldn't delete the plan. Please try again.";
+      if (step === "plan") setPlanError(message);
+      else setPlansError(message);
     }
   }
+
+  const toDelete = plans?.find(p => p.id === confirmDeleteId) ?? null;
 
   const isChecked = (i: number) => current?.checked.includes(i) ?? false;
   const completedCount = current?.checked.length ?? 0;
@@ -174,8 +179,9 @@ export function AIBreakdown({ assignments }: { assignments: Assignment[] }) {
               <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-3">Your plans</p>
               <div className="space-y-2">
                 {plans.map(p => (
-                  <button key={p.id} onClick={() => openPlan(p.id)}
-                    className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-violet-50 rounded-xl border border-transparent hover:border-violet-200 transition-all flex items-center justify-between gap-3">
+                  <div key={p.id} className="flex items-stretch gap-2">
+                  <button onClick={() => openPlan(p.id)}
+                    className="flex-1 min-w-0 text-left px-4 py-3 bg-gray-50 hover:bg-violet-50 rounded-xl border border-transparent hover:border-violet-200 transition-all flex items-center justify-between gap-3">
                     <span className="min-w-0">
                       <span className="block text-sm font-semibold text-gray-700 truncate">{p.title}</span>
                       <span className="block text-xs text-gray-400 truncate">{p.subject} • Due {formatDay(p.dueDate)}</span>
@@ -184,6 +190,11 @@ export function AIBreakdown({ assignments }: { assignments: Assignment[] }) {
                       {p.checked.length === p.plan.steps.length ? "✓ Done" : `${p.checked.length}/${p.plan.steps.length}`}
                     </span>
                   </button>
+                  <button onClick={() => setConfirmDeleteId(p.id)} aria-label={`Delete plan: ${p.title}`} title="Delete plan"
+                    className="shrink-0 px-3 rounded-xl bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-600 border border-transparent hover:border-red-200 transition-all">
+                    🗑️
+                  </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -257,20 +268,20 @@ export function AIBreakdown({ assignments }: { assignments: Assignment[] }) {
           >
             🤖 Plan Another Assignment
           </button>
-          <button onClick={() => setConfirmDelete(true)} className="w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm">
+          <button onClick={() => setConfirmDeleteId(current.id)} className="w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm">
             Delete This Plan
           </button>
         </>
       )}
 
-      {confirmDelete && current && (
+      {toDelete && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="delete-plan-title">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 space-y-4 text-center">
             <h2 id="delete-plan-title" className="text-lg font-bold text-gray-800">Delete this plan?</h2>
-            <p className="text-sm text-gray-500">"{current.title}" and its checked-off steps will be gone for good.</p>
+            <p className="text-sm text-gray-500">"{toDelete.title}" and its checked-off steps will be gone for good.</p>
             <div className="flex gap-3">
-              <button onClick={() => setConfirmDelete(false)} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold text-sm">Keep it</button>
-              <button onClick={removePlan} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold text-sm">Delete</button>
+              <button onClick={() => setConfirmDeleteId(null)} className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold text-sm">Keep it</button>
+              <button onClick={() => removePlan(toDelete.id)} className="flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold text-sm">Delete</button>
             </div>
           </div>
         </div>

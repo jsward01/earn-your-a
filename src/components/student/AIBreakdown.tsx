@@ -192,7 +192,13 @@ export function AIBreakdown({ assignments }: { assignments: Assignment[] }) {
                   </button>
                   <button onClick={() => setConfirmDeleteId(p.id)} aria-label={`Delete plan: ${p.title}`} title="Delete plan"
                     className="shrink-0 px-3 rounded-xl bg-gray-50 text-gray-400 hover:bg-red-50 hover:text-red-600 border border-transparent hover:border-red-200 transition-all">
-                    🗑️
+                    {/* Outline trash can (Lucide "trash-2" shape), drawn in the text color so it's gray, then red on hover. */}
+                    <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M3 6h18" />
+                      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                    </svg>
                   </button>
                   </div>
                 ))}

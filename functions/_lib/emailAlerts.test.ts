@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, buildDigest, buildPayoutEmail, digestWindow, formatDate, inQuietHours, localClock, testEmail, type AlertItem, type Recipient } from "./emailAlerts";
+import { addDays, buildDigest, buildMessageEmail, buildPayoutEmail, digestWindow, formatDate, inQuietHours, localClock, testEmail, type AlertItem, type Recipient } from "./emailAlerts";
 
 const TODAY = "2026-10-14";
 const sam: Recipient = { id: "s1", role: "student", name: "Sam", dueToday: true, due1day: true, makeup: true };
@@ -112,6 +112,33 @@ describe("buildPayoutEmail", () => {
     expect(buildPayoutEmail(sam, { studentName: "Sam", amount: 30, status: "denied" }, { rewardType: "screen", customUnit: "" }).subject).toBe(
       "Your payout request of 30 min was denied",
     );
+  });
+});
+
+describe("buildMessageEmail", () => {
+  it("names the sender for one message, and quotes it", () => {
+    const e = buildMessageEmail(pat, "Sam", [{ senderName: "Sam", body: "Can I go to Ava's after school?" }]);
+    expect(e.subject).toBe("New message from Sam");
+    expect(e.text).toContain("Family chat with Sam");
+    expect(e.text).toContain("- Sam: Can I go to Ava's after school?");
+    expect(e.html).toContain("Ava's after school?");
+  });
+
+  it("counts several messages, and says whose chat when more than one person wrote", () => {
+    expect(buildMessageEmail(pat, "Sam", [{ senderName: "Sam", body: "a" }, { senderName: "Sam", body: "b" }]).subject).toBe("2 new messages from Sam");
+    expect(buildMessageEmail(pat, "Sam", [{ senderName: "Sam", body: "a" }, { senderName: "Lee", body: "b" }]).subject).toBe("2 new messages in your chat with Sam");
+    expect(buildMessageEmail(sam, "Sam", [{ senderName: "Pat", body: "a" }, { senderName: "Lee", body: "b" }]).subject).toBe("2 new messages in your family chat");
+  });
+
+  it("quotes only the latest five, shortens long ones, and escapes HTML", () => {
+    const many = Array.from({ length: 7 }, (_, i) => ({ senderName: "Pat", body: `msg ${i}` }));
+    const e = buildMessageEmail(sam, "Sam", many);
+    expect(e.text).toContain("…and 2 earlier messages");
+    expect(e.text).not.toContain("msg 1\n");
+    expect(e.text).toContain("msg 6");
+    const long = buildMessageEmail(sam, "Sam", [{ senderName: "Pat", body: "x".repeat(400) + " <b>" }]);
+    expect(long.text).toContain("x".repeat(300) + "…");
+    expect(buildMessageEmail(sam, "Sam", [{ senderName: "Pat", body: "<script>" }]).html).toContain("&lt;script&gt;");
   });
 });
 

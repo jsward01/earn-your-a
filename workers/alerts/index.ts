@@ -9,6 +9,7 @@
 import {
   addDays,
   buildDigest,
+  buildMessageEmail,
   buildPayoutEmail,
   digestWindow,
   inQuietHours,
@@ -16,6 +17,7 @@ import {
   RETAKE_DAYS_LEFT,
   type AlertItem,
   type Email,
+  type MessageAlertItem,
   type Recipient,
   type Student,
 } from "../../functions/_lib/emailAlerts";
@@ -38,6 +40,8 @@ interface RecipientRow {
   due_today: number;
   makeup: number;
   payout: number;
+  messages: number;
+  messaging_allowed: number;
   quiet_start: string | null;
   quiet_end: string | null;
   timezone: string;
@@ -45,6 +49,10 @@ interface RecipientRow {
 
 /** Payout events older than this are never emailed (so turning email on doesn't send a pile of old news). */
 const PAYOUT_LOOKBACK = "-2 days";
+/** Messages are emailed only after sitting unread this long, so a chat that's being read live sends no email. */
+const MESSAGE_GRACE = "-5 minutes";
+/** Same idea as PAYOUT_LOOKBACK: older unread messages are never emailed. */
+const MESSAGE_LOOKBACK = "-2 days";
 
 export default {
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
@@ -59,7 +67,8 @@ export default {
 export async function runAlerts(env: Env, now: Date): Promise<void> {
   // Everyone with email on and an address. A student's own alerts also need their parents' "Allow email alerts".
   const { results: rows } = await env.DB.prepare(
-    `SELECT u.id, u.family_id, u.role, u.name, ns.email_addr, ns.due_1day, ns.due_today, ns.makeup, ns.payout, ns.quiet_start, ns.quiet_end, f.timezone
+    `SELECT u.id, u.family_id, u.role, u.name, ns.email_addr, ns.due_1day, ns.due_today, ns.makeup, ns.payout, ns.messages, u.messaging_allowed,
+            ns.quiet_start, ns.quiet_end, f.timezone
      FROM notification_settings ns
      JOIN users u ON u.id = ns.user_id
      JOIN families f ON f.id = u.family_id
@@ -112,6 +121,8 @@ async function runFamily(env: Env, now: Date, familyId: string, allRecipients: R
     }
   }
 
+  await sendMessageAlerts(env, recipients, students);
+
   const payoutRecipients = recipients.filter(r => r.payout === 1);
   if (payoutRecipients.length === 0) return;
 
@@ -139,6 +150,47 @@ async function runFamily(env: Env, now: Date, familyId: string, allRecipients: R
   }
 }
 
+/**
+ * "New messages" emails: per person and per family chat they're in, the messages from others that they haven't read
+ * and haven't been emailed about, once they've sat unread for MESSAGE_GRACE. `message_reads.emailed_rowid` moves past
+ * what was sent, so each email covers only what's new.
+ */
+async function sendMessageAlerts(env: Env, recipients: RecipientRow[], students: Student[]): Promise<void> {
+  for (const r of recipients) {
+    if (r.messages !== 1) continue;
+    if (r.role === "student" && r.messaging_allowed !== 1) continue;
+    const chats = r.role === "student" ? students.filter(s => s.id === r.id) : students;
+    for (const chat of chats) {
+      const { results } = await env.DB.prepare(
+        `SELECT m.rowid AS seq, u.name AS sender_name, m.body
+         FROM messages m JOIN users u ON u.id = m.sender_id
+         JOIN users st ON st.id = m.student_id AND st.messaging_allowed = 1
+         LEFT JOIN message_reads mr ON mr.user_id = ? AND mr.student_id = m.student_id
+         WHERE m.student_id = ? AND m.sender_id != ?
+           AND m.rowid > MAX(COALESCE(mr.read_rowid, 0), COALESCE(mr.emailed_rowid, 0))
+           AND m.created_at <= datetime('now', ?) AND m.created_at >= datetime('now', ?)
+         ORDER BY m.rowid`,
+      )
+        .bind(r.id, chat.id, r.id, MESSAGE_GRACE, MESSAGE_LOOKBACK)
+        .all<{ seq: number; sender_name: string; body: string }>();
+      if (results.length === 0) continue;
+
+      const items: MessageAlertItem[] = results.map(m => ({ senderName: firstName(m.sender_name), body: m.body }));
+      const last = results[results.length - 1].seq;
+      const outcome = await deliver(env, r, "message", `${chat.id}/${last}`, buildMessageEmail(toRecipient(r), chat.name, items));
+      // Sent, already sent, or failed for good: don't email these messages again. A retryable error tries next run.
+      if (outcome === "sent" || outcome === "duplicate" || outcome === "failed") {
+        await env.DB.prepare(
+          `INSERT INTO message_reads (user_id, student_id, emailed_rowid) VALUES (?, ?, ?)
+           ON CONFLICT (user_id, student_id) DO UPDATE SET emailed_rowid = MAX(emailed_rowid, excluded.emailed_rowid)`,
+        )
+          .bind(r.id, chat.id, last)
+          .run();
+      }
+    }
+  }
+}
+
 function toRecipient(r: RecipientRow): Recipient {
   return { id: r.id, role: r.role, name: firstName(r.name), dueToday: r.due_today === 1, due1day: r.due_1day === 1, makeup: r.makeup === 1 };
 }
@@ -147,26 +199,31 @@ function firstName(name: string): string {
   return name.trim().split(/\s+/)[0] || name;
 }
 
-async function deliver(env: Env, r: RecipientRow, kind: string, ref: string, email: Email): Promise<void> {
+type Outcome = "dry-run" | "duplicate" | "sent" | "retry" | "failed";
+
+async function deliver(env: Env, r: RecipientRow, kind: string, ref: string, email: Email): Promise<Outcome> {
   if (!env.RESEND_API_KEY) {
     console.log(`alerts [dry run, no RESEND_API_KEY] ${kind}/${ref} → ${r.email_addr}: ${email.subject}\n${email.text}`);
-    return;
+    return "dry-run";
   }
   const claim = await env.DB.prepare("INSERT OR IGNORE INTO email_log (user_id, kind, ref) VALUES (?, ?, ?)").bind(r.id, kind, ref).run();
-  if (claim.meta.changes !== 1) return; // already sent (or being sent by an overlapping run)
+  if (claim.meta.changes !== 1) return "duplicate"; // already sent (or being sent by an overlapping run)
 
   const result = await sendEmail(env.RESEND_API_KEY, r.email_addr, email, `${kind}/${r.id}/${ref}`);
   if (result.ok) {
     await env.DB.prepare("UPDATE email_log SET status = 'sent', detail = ? WHERE user_id = ? AND kind = ? AND ref = ?")
       .bind(result.id, r.id, kind, ref)
       .run();
+    return "sent";
   } else if (result.retryable) {
     console.warn(`alerts: ${kind}/${ref} to ${r.id} will retry: ${result.error}`);
     await env.DB.prepare("DELETE FROM email_log WHERE user_id = ? AND kind = ? AND ref = ?").bind(r.id, kind, ref).run();
+    return "retry";
   } else {
     console.error(`alerts: ${kind}/${ref} to ${r.id} failed: ${result.error}`);
     await env.DB.prepare("UPDATE email_log SET status = 'failed', detail = ? WHERE user_id = ? AND kind = ? AND ref = ?")
       .bind(result.error.slice(0, 500), r.id, kind, ref)
       .run();
+    return "failed";
   }
 }

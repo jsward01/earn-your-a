@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AuthUser, Assignment, RewardSettings, View } from "./types";
-import { fetchCurrentUser, fetchAssignments, fetchFamilyAccounts, fetchRewardSettings, fetchRewardSummary, logout as apiLogout, setActiveStudent, type RewardSummary } from "./lib/api";
+import { fetchCurrentUser, fetchAssignments, fetchFamilyAccounts, fetchRewardSettings, fetchRewardSummary, fetchUnreadMessages, logout as apiLogout, setActiveStudent, type RewardSummary } from "./lib/api";
 import { DEFAULT_REWARD_SETTINGS } from "./lib/rewards";
 import { subjectOptions } from "./lib/subjects";
 import { RewardSettingsContext } from "./lib/rewardSettingsContext";
@@ -23,12 +23,16 @@ import { NotificationCenter } from "./components/shared/NotificationCenter";
 const STUDENT_NAVS: NavItem[] = [
   { id: "dashboard", icon: "🏠", label: "Home" },
   { id: "calendar", icon: "📅", label: "Calendar" },
-  { id: "ai", icon: "🤖", label: "AI Planner" },
+  { id: "ai", icon: "🤖", label: "Planner" },
   { id: "rewards", icon: "💰", label: "Rewards" },
   { id: "weekly", icon: "📊", label: "Weekly" },
+  { id: "messages", icon: "💬", label: "Messages" },
   { id: "notifications", icon: "🔔", label: "Alerts" },
   { id: "profile", icon: "👤", label: "Profile" },
 ];
+
+/** How often the Messages tab badge checks for unread messages (while the page is visible). */
+const UNREAD_POLL_MS = 60_000;
 
 const PARENT_NAVS: NavItem[] = [
   { id: "dashboard", icon: "📊", label: "Overview" },
@@ -64,6 +68,8 @@ export default function App() {
   const selectedRef = useRef<string | null>(null);
   // The parent assignment editor (null assignment = add new work). Lives here so Overview and the Balance page share it.
   const [editor, setEditor] = useState<{ assignment: Assignment | null } | null>(null);
+  // Messages tab badge, and whether the student's messaging is on (off hides the student's tab).
+  const [unread, setUnread] = useState<{ allowed: boolean; count: number }>({ allowed: true, count: 0 });
 
   // Point every student-scoped request at `id`, and drop the previous student's
   // data right away so it can't flash under the new student's name.
@@ -106,6 +112,21 @@ export default function App() {
       .then(s => { if (selectedRef.current === requestedFor) setSummary(s); })
       .catch(err => console.error("Failed to load reward summary", err));
   }, []);
+
+  const refreshUnread = useCallback(() => {
+    const requestedFor = selectedRef.current;
+    fetchUnreadMessages()
+      .then(u => { if (selectedRef.current === requestedFor) setUnread(u); })
+      .catch(() => { /* the badge is a convenience; the Messages screen shows real errors */ });
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    if (user.role === "parent" && !selectedStudentId) return;
+    refreshUnread();
+    const timer = setInterval(() => { if (document.visibilityState === "visible") refreshUnread(); }, UNREAD_POLL_MS);
+    return () => clearInterval(timer);
+  }, [user, selectedStudentId, refreshUnread]);
 
   useEffect(() => {
     fetchCurrentUser()
@@ -150,7 +171,7 @@ export default function App() {
   }
 
   const isParent = user.role === "parent";
-  const navs = isParent ? PARENT_NAVS : STUDENT_NAVS;
+  const navs = isParent ? PARENT_NAVS : STUDENT_NAVS.filter(n => n.id !== "messages" || unread.allowed);
 
   function handleAssignmentSaved(a: Assignment) {
     setAssignments(prev => (prev.some(x => x.id === a.id) ? prev.map(x => (x.id === a.id ? a : x)) : [...prev, a]));
@@ -179,6 +200,7 @@ export default function App() {
     selectedRef.current = null;
     setActiveStudent(null);
     setSelectedStudentId(null);
+    setUnread({ allowed: true, count: 0 });
     setView("dashboard");
   }
 
@@ -209,7 +231,9 @@ export default function App() {
         )}
         {!isParent && view === "dashboard" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} onChanged={refreshSummary} />}
         {!isParent && view === "rewards" && <StudentRewards summary={summary} assignments={assignments} onChanged={refreshSummary} />}
-        {view === "messages" && <MessagesScreen isParent={isParent} />}
+        {view === "messages" && (isParent || unread.allowed) && (
+          <MessagesScreen isParent={isParent} userId={user.id} studentName={isParent ? studentName : user.name} onRead={refreshUnread} />
+        )}
         {view === "calendar" && <CalendarView assignments={assignments} isParent={isParent} />}
         {view === "weekly" && <WeeklySummary assignments={assignments} isParent={isParent} studentName={studentName} />}
         {view === "notifications" && <NotificationCenter key={settingsLoaded ? "loaded" : "defaults"} assignments={assignments} isParent={isParent} payoutPending={payoutPending} studentName={studentName} />}
@@ -239,7 +263,7 @@ export default function App() {
         {isParent && view === "settings" && <ParentSettings user={user} onStudentsChanged={() => { loadStudents(); refreshSummary(); }} onSettingsSaved={setRewardSettings} onRewardsRecalculated={() => { reloadAssignments(); refreshSummary(); }} />}
       </div>
 
-      <BottomNav navs={navs} view={view} isParent={isParent} payoutPending={payoutPending} onSelect={setView} />
+      <BottomNav navs={navs} view={view} isParent={isParent} payoutPending={payoutPending} badges={{ messages: view === "messages" ? 0 : unread.count }} onSelect={setView} />
       {isParent && editor && (
         <AssignmentEditor
           assignment={editor.assignment}

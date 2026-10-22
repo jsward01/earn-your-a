@@ -15,6 +15,7 @@ interface UserRow {
   avatar: string | null;
   rewards_start_date: string | null;
   email_alerts_allowed: number;
+  messaging_allowed: number;
 }
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
@@ -23,12 +24,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if (user.role !== "parent") return json({ error: "Only a parent can view account access" }, 403);
 
   const { results } = await context.env.DB
-    .prepare("SELECT id, name, role, email, is_admin, avatar, rewards_start_date, email_alerts_allowed FROM users WHERE family_id = ? ORDER BY role DESC, created_at, id")
+    .prepare("SELECT id, name, role, email, is_admin, avatar, rewards_start_date, email_alerts_allowed, messaging_allowed FROM users WHERE family_id = ? ORDER BY role DESC, created_at, id")
     .bind(user.familyId)
     .all<UserRow>();
 
   return json(
-    results.map(r => ({ id: r.id, name: r.name, role: r.role, email: r.email, isAdmin: !!r.is_admin, avatar: r.avatar, rewardsStartDate: r.rewards_start_date, emailAlertsAllowed: r.email_alerts_allowed === 1 })),
+    results.map(r => ({ id: r.id, name: r.name, role: r.role, email: r.email, isAdmin: !!r.is_admin, avatar: r.avatar, rewardsStartDate: r.rewards_start_date, emailAlertsAllowed: r.email_alerts_allowed === 1, messagingAllowed: r.messaging_allowed === 1 })),
     200,
   );
 };

@@ -26,7 +26,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if (!user) return json({ error: "Not authenticated" }, 401);
 
   const row = await context.env.DB
-    .prepare("SELECT email, email_addr, due_1day, due_today, makeup, payout, quiet_start, quiet_end FROM notification_settings WHERE user_id = ?")
+    .prepare("SELECT email, email_addr, due_1day, due_today, makeup, payout, messages, quiet_start, quiet_end FROM notification_settings WHERE user_id = ?")
     .bind(user.id)
     .first<NotificationSettingsRow>();
 
@@ -51,11 +51,11 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
 
   await context.env.DB
     .prepare(
-      `INSERT INTO notification_settings (user_id, email, email_addr, due_1day, due_today, makeup, payout, quiet_start, quiet_end)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO notification_settings (user_id, email, email_addr, due_1day, due_today, makeup, payout, messages, quiet_start, quiet_end)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET
          email = excluded.email, email_addr = excluded.email_addr, due_1day = excluded.due_1day,
-         due_today = excluded.due_today, makeup = excluded.makeup, payout = excluded.payout,
+         due_today = excluded.due_today, makeup = excluded.makeup, payout = excluded.payout, messages = excluded.messages,
          quiet_start = excluded.quiet_start, quiet_end = excluded.quiet_end`,
     )
     .bind(
@@ -66,6 +66,7 @@ export const onRequestPut: PagesFunction<Env> = async (context) => {
       settings.dueToday ? 1 : 0,
       settings.makeup ? 1 : 0,
       settings.payout ? 1 : 0,
+      settings.messages ? 1 : 0,
       quiet.quiet_start,
       quiet.quiet_end,
     )

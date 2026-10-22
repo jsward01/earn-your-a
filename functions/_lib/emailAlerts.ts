@@ -180,6 +180,40 @@ export function buildPayoutEmail(r: Recipient, p: PayoutInfo, fmt: RewardFormat)
   ]);
 }
 
+/** One unread message, as the Worker reads it. */
+export interface MessageAlertItem {
+  senderName: string;
+  body: string;
+}
+
+/** At most this many messages are quoted in one email; the rest are counted. */
+export const MESSAGE_EMAIL_MAX = 5;
+const MESSAGE_PREVIEW_CHARS = 300;
+
+/**
+ * Unread messages in one family chat. `studentName` is the student the chat is with (the recipient's own chat when
+ * they're the student). Quotes the latest few, oldest first.
+ */
+export function buildMessageEmail(r: Recipient, studentName: string, messages: MessageAlertItem[]): Email {
+  const senders = [...new Set(messages.map(m => m.senderName))];
+  const subject =
+    messages.length === 1
+      ? `New message from ${senders[0]}`
+      : senders.length === 1
+        ? `${messages.length} new messages from ${senders[0]}`
+        : `${messages.length} new messages in ${r.role === "parent" ? `your chat with ${studentName}` : "your family chat"}`;
+  const shown = messages.slice(-MESSAGE_EMAIL_MAX);
+  const lines = shown.map(m => {
+    const text = m.body.replace(/\s+/g, " ");
+    return `${m.senderName}: ${text.length > MESSAGE_PREVIEW_CHARS ? `${text.slice(0, MESSAGE_PREVIEW_CHARS)}…` : text}`;
+  });
+  const hidden = messages.length - shown.length;
+  if (hidden > 0) lines.unshift(`…and ${hidden} earlier message${hidden === 1 ? "" : "s"} (open the app to read them)`);
+  return render(subject, `Hi ${r.name},`, [
+    { heading: r.role === "parent" ? `Family chat with ${studentName}` : "Family chat", lines: [...lines, "Reply in the app under Messages."] },
+  ]);
+}
+
 const FOOTER = "You're getting this because email alerts are on in Earn Your A. To change them, open the app → Alerts → ⚙️ Settings.";
 
 function escapeHtml(s: string): string {
@@ -222,6 +256,7 @@ export function testEmail(firstName: string): Email {
         "Around 7 AM: work due today, and retake windows closing in 2 days",
         "Around 5 PM: work due tomorrow",
         "Payout requests and approvals, within about 15 minutes",
+        "New messages you haven't read, within about 15 minutes",
         "No email on days with nothing to say",
       ],
     },

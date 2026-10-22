@@ -14,6 +14,8 @@ export interface EmailAlertSettings {
   dueToday: boolean;
   makeup: boolean;
   payout: boolean;
+  /** New messages in the family chat (added Oct 21, 2026; on by default). */
+  messages: boolean;
   quietHours: boolean;
   /** Local hours, 0–23: no email from quietStart until quietEnd (wrapping past midnight when start > end). */
   quietStart: number;
@@ -30,6 +32,7 @@ export interface NotificationSettingsRow {
   due_today: number;
   makeup: number;
   payout: number;
+  messages: number;
   quiet_start: string | null;
   quiet_end: string | null;
 }
@@ -56,6 +59,7 @@ export function defaultEmailAlertSettings(loginEmail: string): EmailAlertSetting
     dueToday: true,
     makeup: true,
     payout: true,
+    messages: true,
     quietHours: true,
     quietStart: DEFAULT_QUIET_START,
     quietEnd: DEFAULT_QUIET_END,
@@ -93,6 +97,7 @@ export function fromRow(row: NotificationSettingsRow): EmailAlertSettings {
     dueToday: row.due_today === 1,
     makeup: row.makeup === 1,
     payout: row.payout === 1,
+    messages: row.messages !== 0,
     quietHours: quiet !== null,
     quietStart: quiet?.start ?? DEFAULT_QUIET_START,
     quietEnd: quiet?.end ?? DEFAULT_QUIET_END,
@@ -110,6 +115,8 @@ export function validateEmailAlertSettings(body: unknown): EmailAlertSettings | 
   for (const key of flags) {
     if (typeof b[key] !== "boolean") return { error: `${key} must be true or false` };
   }
+  // Optional so a page loaded before message alerts existed can still save (it then turns them on, the default).
+  if (b.messages !== undefined && typeof b.messages !== "boolean") return { error: "messages must be true or false" };
   if (b.emailAddr !== undefined && typeof b.emailAddr !== "string") return { error: "Email address must be text" };
   const emailAddr = typeof b.emailAddr === "string" ? b.emailAddr.trim().toLowerCase() : "";
   if (emailAddr && !isEmailAddress(emailAddr)) return { error: "That doesn't look like an email address" };
@@ -137,6 +144,7 @@ export function validateEmailAlertSettings(body: unknown): EmailAlertSettings | 
     dueToday: b.dueToday as boolean,
     makeup: b.makeup as boolean,
     payout: b.payout as boolean,
+    messages: b.messages !== false,
     quietHours,
     quietStart,
     quietEnd,

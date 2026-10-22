@@ -67,6 +67,8 @@ export interface EmailAlertSettings {
   dueToday: boolean;
   makeup: boolean;
   payout: boolean;
+  /** New messages in the family chat. */
+  messages: boolean;
   /** No emails from quietStart until quietEnd (local hours 0–23, wrapping past midnight). Default 8pm–6am. */
   quietHours: boolean;
   quietStart: number;
@@ -169,13 +171,24 @@ export interface NewAssignmentForm {
   dueDate: string;
 }
 
-export type MessageSender = "parent" | "student";
+/** One message in a student's family chat (the student and all of the family's parents). */
+export interface FamilyMessage {
+  /** Order within the chat (also what "read up to" is measured in). */
+  seq: number;
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole: "parent" | "student";
+  body: string;
+  /** UTC "YYYY-MM-DD HH:MM:SS". */
+  createdAt: string;
+}
 
-export interface ChatMessage {
-  id: number;
-  from: MessageSender;
-  text: string;
-  time: string;
+export interface MessageThread {
+  /** false = a parent turned messaging off for this student (parents still see the history, nobody can post). */
+  allowed: boolean;
+  members: { id: string; name: string; role: "parent" | "student" }[];
+  messages: FamilyMessage[];
 }
 
 export type PayoutAction = "approve" | "delay" | "deny";

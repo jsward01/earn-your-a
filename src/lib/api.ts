@@ -1,5 +1,5 @@
 import type { ExtractedItem } from "./import/types";
-import type { AuthUser, Assignment, AssignmentPlanForm, EmailAlertSettings, RewardSettings, SavedPlan, SavingsGoal } from "../types";
+import type { AuthUser, Assignment, AssignmentPlanForm, EmailAlertSettings, FamilyMessage, MessageThread, RewardSettings, SavedPlan, SavingsGoal } from "../types";
 import { fromApiRow, type AssignmentApiRow } from "./assignments";
 
 async function parseJsonOrThrow(res: Response): Promise<unknown> {
@@ -304,6 +304,8 @@ export interface FamilyAccount {
   rewardsStartDate?: string | null;
   /** Students only: false = a parent turned off alert emails to this student. */
   emailAlertsAllowed?: boolean;
+  /** Students only: false = a parent turned off messaging for this student. */
+  messagingAllowed?: boolean;
 }
 
 export async function fetchFamilyAccounts(): Promise<FamilyAccount[]> {
@@ -445,6 +447,35 @@ export async function setStudentEmailAlerts(studentId: string, allowed: boolean)
     body: JSON.stringify({ allowed }),
   });
   return ((await parseJsonOrThrow(res)) as { emailAlertsAllowed: boolean }).emailAlertsAllowed;
+}
+
+/** Parent-only: turn messaging on or off for a student. */
+export async function setStudentMessaging(studentId: string, allowed: boolean): Promise<boolean> {
+  const res = await fetch(`/api/users/${studentId}/messaging`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ allowed }),
+  });
+  return ((await parseJsonOrThrow(res)) as { messagingAllowed: boolean }).messagingAllowed;
+}
+
+/** The family chat with the current student. Loading it marks it read. */
+export async function fetchMessages(): Promise<MessageThread> {
+  return (await parseJsonOrThrow(await fetch(scoped("/api/messages")))) as MessageThread;
+}
+
+export async function sendMessage(body: string): Promise<FamilyMessage> {
+  const res = await fetch(scoped("/api/messages"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  return (await parseJsonOrThrow(res)) as FamilyMessage;
+}
+
+/** For the Messages tab badge. `allowed: false` means the student's messaging is off. */
+export async function fetchUnreadMessages(): Promise<{ allowed: boolean; count: number }> {
+  return (await parseJsonOrThrow(await fetch(scoped("/api/messages/unread")))) as { allowed: boolean; count: number };
 }
 
 /** Parent-only: set when rewards start for a student (YYYY-MM-DD, today or earlier). */

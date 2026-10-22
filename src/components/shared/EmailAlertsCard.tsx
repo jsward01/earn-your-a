@@ -7,7 +7,7 @@ interface EmailAlertsCardProps {
   studentName: string;
 }
 
-type AlertKey = "due1day" | "dueToday" | "makeup" | "payout";
+type AlertKey = "due1day" | "dueToday" | "makeup" | "payout" | "messages";
 
 function alertOptions(isParent: boolean, studentName: string): { key: AlertKey; label: string; hint: string }[] {
   const whose = isParent ? `${studentName}'s` : "your";
@@ -20,6 +20,7 @@ function alertOptions(isParent: boolean, studentName: string): { key: AlertKey; 
       label: "Payouts",
       hint: isParent ? `When ${studentName} asks for a payout` : "When a parent approves or denies your payout",
     },
+    { key: "messages", label: "New messages", hint: "When someone writes in the family chat and you haven't read it yet" },
   ];
 }
 
@@ -181,7 +182,7 @@ export function EmailAlertsCard({ isParent, studentName }: EmailAlertsCardProps)
       {unsavedAddr && savedAddr && <p className="text-xs text-gray-400">Save the new address first, then send a test to it.</p>}
       {testResult && <p className={`text-sm ${testResult.ok ? "text-green-600" : "text-red-500"}`}>{testResult.text}</p>}
       <p className="text-xs text-gray-400">
-        "Due today" and retake emails go out around 7 AM, "Due tomorrow" around 5 PM, and payout emails within
+        "Due today" and retake emails go out around 7 AM, "Due tomorrow" around 5 PM, and payout and message emails within
         about 15 minutes. Alerts always show on this screen too. Text messages are coming later.
       </p>
     </div>

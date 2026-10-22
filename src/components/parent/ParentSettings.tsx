@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AuthUser, RewardSettings } from "../../types";
-import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, setRewardsStart, setStudentEmailAlerts, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
+import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword, saveRewardSettings, setRewardsStart, setStudentEmailAlerts, setStudentMessaging, type FamilyAccount, type PasswordResetResult } from "../../lib/api";
 import { formatDay } from "../../lib/dates";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
 import { AppearanceCard } from "../shared/AppearanceCard";
@@ -117,6 +117,21 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved, onRew
 
   const [alertsSaving, setAlertsSaving] = useState<string | null>(null);
   const [alertsError, setAlertsError] = useState<{ id: string; message: string } | null>(null);
+  const [messagingSaving, setMessagingSaving] = useState<string | null>(null);
+  const [messagingError, setMessagingError] = useState<{ id: string; message: string } | null>(null);
+
+  async function handleToggleMessaging(studentId: string, allowed: boolean) {
+    setMessagingSaving(studentId);
+    setMessagingError(null);
+    try {
+      await setStudentMessaging(studentId, allowed);
+      loadAccounts();
+    } catch (err) {
+      setMessagingError({ id: studentId, message: err instanceof Error ? err.message : "Couldn't save" });
+    } finally {
+      setMessagingSaving(null);
+    }
+  }
 
   async function handleToggleEmailAlerts(studentId: string, allowed: boolean) {
     setAlertsSaving(studentId);
@@ -427,6 +442,25 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved, onRew
                             onClick={() => handleToggleEmailAlerts(a.id, a.emailAlertsAllowed === false)}
                             className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-50 ${a.emailAlertsAllowed !== false ? "bg-emerald-700" : "bg-gray-200"}`}>
                             <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow ${a.emailAlertsAllowed !== false ? "left-6" : "left-0.5"}`} />
+                          </button>
+                        </div>
+                      )}
+                      {a.role === "student" && (
+                        <div className="mt-1.5 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-gray-600">Allow messaging</p>
+                            <p className="text-xs text-gray-400">
+                              {a.messagingAllowed === false
+                                ? `Off: ${a.name.split(" ")[0]} has no Messages tab and nobody can post. Past messages are kept.`
+                                : `${a.name.split(" ")[0]} and the family's parents share one chat under Messages.`}
+                            </p>
+                            {messagingError?.id === a.id && <p className="text-xs text-red-500">{messagingError.message}</p>}
+                          </div>
+                          <button role="switch" aria-checked={a.messagingAllowed !== false} aria-label={`Allow messaging for ${a.name}`}
+                            disabled={messagingSaving === a.id}
+                            onClick={() => handleToggleMessaging(a.id, a.messagingAllowed === false)}
+                            className={`w-12 h-6 rounded-full transition-all relative shrink-0 disabled:opacity-50 ${a.messagingAllowed !== false ? "bg-emerald-700" : "bg-gray-200"}`}>
+                            <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow ${a.messagingAllowed !== false ? "left-6" : "left-0.5"}`} />
                           </button>
                         </div>
                       )}

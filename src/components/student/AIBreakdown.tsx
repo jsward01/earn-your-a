@@ -9,12 +9,6 @@ type Step = "form" | "plan";
 
 const EMPTY_FORM: AssignmentPlanForm = { title: "", subject: "", type: "assignment", dueDate: "", details: "" };
 
-const EXAMPLES: { title: string; subject: string; type: string }[] = [
-  { title: "10-page research paper on WW2", subject: "History", type: "research paper" },
-  { title: "Study for Algebra midterm exam", subject: "Math", type: "test" },
-  { title: "Book report on To Kill a Mockingbird", subject: "English", type: "essay" },
-];
-
 export function AIBreakdown({ assignments }: { assignments: Assignment[] }) {
   const subjects = useMemo(() => subjectOptions(assignments), [assignments]);
   const [step, setStep] = useState<Step>("form");
@@ -195,19 +189,6 @@ export function AIBreakdown({ assignments }: { assignments: Assignment[] }) {
             </div>
           )}
           {plansError && <p className="text-sm text-red-500 text-center">{plansError}</p>}
-
-          <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-3">Try an example</p>
-            <div className="space-y-2">
-              {EXAMPLES.map((ex, i) => (
-                <button key={i} onClick={() => setForm({ ...form, title: ex.title, type: ex.type, subject: subjects.includes(ex.subject) ? ex.subject : form.subject })}
-                  className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-violet-50 rounded-xl text-sm text-gray-600 hover:text-violet-700 transition-all border border-transparent hover:border-violet-200">
-                  <span className="font-medium">{ex.title}</span>
-                  <span className="text-gray-400 ml-2">• {ex.subject}</span>
-                </button>
-              ))}
-            </div>
-          </div>
         </>
       )}
 

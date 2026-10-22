@@ -100,12 +100,12 @@ export function AIBreakdown({ assignments }: { assignments: Assignment[] }) {
       {step === "form" && (
         <>
           <div className="bg-gradient-to-br from-violet-600 to-indigo-600 rounded-3xl p-5 text-white shadow-lg">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-4">
               <div className="min-w-0">
                 <p className="font-bold text-lg">AI Assignment Planner</p>
                 <p className="text-violet-200 text-xs">Break any assignment into a step-by-step plan</p>
               </div>
-              {/* Jonathan's robot (Oct 21, 2026), on the right; its white background was made transparent. */}
+              {/* Jonathan's robot (Oct 21, 2026), just right of the title; its white background was made transparent. */}
               <img src={robot} alt="" className="h-24 w-auto -my-3 shrink-0 drop-shadow-lg" />
             </div>
           </div>

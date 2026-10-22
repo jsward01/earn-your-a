@@ -114,7 +114,7 @@ export function StudentRewards({ summary, assignments, onChanged }: StudentRewar
 
   return (
     <div className="pb-4 px-4 pt-4 space-y-4">
-      <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl p-5 text-white shadow-lg">
+      <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-3xl p-5 text-white shadow-lg">
         <p className="text-indigo-200 text-sm">Current Balance</p>
         <p className="text-4xl font-bold mt-1">{fmt(balance)}</p>
         <div className="flex gap-4 mt-3 text-sm">
@@ -132,7 +132,7 @@ export function StudentRewards({ summary, assignments, onChanged }: StudentRewar
           <div className="text-right"><p className="text-xs text-gray-400">Target</p><p className="font-bold text-indigo-600">{fmt(goal.amount, { short: true })}</p></div>
         </div>
         <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-          <div className="bg-gradient-to-r from-indigo-500 to-purple-500 h-3 rounded-full" style={{ width: `${goalProgress}%` }} />
+          <div className="bg-gradient-to-r from-indigo-500 to-indigo-700 h-3 rounded-full" style={{ width: `${goalProgress}%` }} />
         </div>
         <div className="flex justify-between mt-2">
           <p className="text-xs text-gray-500">{goalProgress}% saved</p>

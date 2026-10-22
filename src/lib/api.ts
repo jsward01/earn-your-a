@@ -183,6 +183,16 @@ export interface PayoutRequestRow {
   resolvedAt: string | null;
 }
 
+/** Your own accent color; null goes back to your role's default. */
+export async function saveAccent(accent: string | null): Promise<void> {
+  const res = await fetch("/api/account/accent", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accent }),
+  });
+  await parseJsonOrThrow(res);
+}
+
 /** The signed-in person's read and dismissed alerts (Alerts page). */
 export async function fetchNotificationState(): Promise<{ read: string[]; dismissed: string[] }> {
   return (await parseJsonOrThrow(await fetch("/api/notification-state"))) as { read: string[]; dismissed: string[] };

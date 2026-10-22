@@ -86,6 +86,8 @@ export interface AuthUser {
   name: string;
   email: string;
   isAdmin: boolean;
+  /** Their own accent color (src/lib/accent.ts); null = the role's default. */
+  accent?: string | null;
 }
 
 export type View =

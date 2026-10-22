@@ -3,6 +3,7 @@ import type { AuthUser, Assignment, RewardSettings, View } from "./types";
 import { fetchCurrentUser, fetchAssignments, fetchFamilyAccounts, fetchRewardSettings, fetchRewardSummary, fetchUnreadMessages, logout as apiLogout, setActiveStudent, type RewardSummary } from "./lib/api";
 import { DEFAULT_REWARD_SETTINGS } from "./lib/rewards";
 import { subjectOptions } from "./lib/subjects";
+import { applyAccent } from "./lib/accent";
 import { RewardSettingsContext } from "./lib/rewardSettingsContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { AppHeader, type StudentOption } from "./components/AppHeader";
@@ -128,6 +129,11 @@ export default function App() {
     return () => clearInterval(timer);
   }, [user, selectedStudentId, refreshUnread]);
 
+  // Each person's own accent color (null user = signed out: back to the plain defaults).
+  useEffect(() => {
+    applyAccent(user?.role ?? null, user?.accent ?? null);
+  }, [user]);
+
   useEffect(() => {
     fetchCurrentUser()
       .then(setUser)
@@ -238,7 +244,7 @@ export default function App() {
         {view === "weekly" && <WeeklySummary assignments={assignments} isParent={isParent} studentName={studentName} />}
         {view === "notifications" && <NotificationCenter key={settingsLoaded ? "loaded" : "defaults"} assignments={assignments} isParent={isParent} payoutPending={payoutPending} studentName={studentName} />}
         {!isParent && view === "ai" && <AIBreakdown assignments={assignments} />}
-        {!isParent && view === "profile" && <StudentProfile userId={user.id} name={user.name} avatar={summary?.studentAvatar ?? null} onAvatarChanged={refreshSummary} />}
+        {!isParent && view === "profile" && <StudentProfile userId={user.id} name={user.name} avatar={summary?.studentAvatar ?? null} onAvatarChanged={refreshSummary} accent={user.accent ?? null} onAccentSaved={accent => setUser({ ...user, accent })} />}
         {view === "balance" && (
           <BalancePage
             assignments={assignments}
@@ -260,7 +266,7 @@ export default function App() {
             onAdd={() => setEditor({ assignment: null })}
           />
         )}
-        {isParent && view === "settings" && <ParentSettings user={user} onStudentsChanged={() => { loadStudents(); refreshSummary(); }} onSettingsSaved={setRewardSettings} onRewardsRecalculated={() => { reloadAssignments(); refreshSummary(); }} />}
+        {isParent && view === "settings" && <ParentSettings user={user} onAccentSaved={accent => setUser({ ...user, accent })} onStudentsChanged={() => { loadStudents(); refreshSummary(); }} onSettingsSaved={setRewardSettings} onRewardsRecalculated={() => { reloadAssignments(); refreshSummary(); }} />}
       </div>
 
       <BottomNav navs={navs} view={view} isParent={isParent} payoutPending={payoutPending} badges={{ messages: view === "messages" ? 0 : unread.count }} onSelect={setView} />

@@ -4,12 +4,15 @@ import { addAccount, fetchFamilyAccounts, fetchRewardSettings, resetUserPassword
 import { formatDay } from "../../lib/dates";
 import { ChangePasswordCard } from "../shared/ChangePasswordCard";
 import { AppearanceCard } from "../shared/AppearanceCard";
+import { AccentCard } from "../shared/AccentCard";
 import { Avatar } from "../shared/Avatar";
 import { DEFAULT_REWARD_SETTINGS, unitWord } from "../../lib/rewards";
 import { RepriceModal } from "./RepriceModal";
 
 interface ParentSettingsProps {
   user: AuthUser;
+  /** After the parent picks their own app color (My Account). */
+  onAccentSaved: (accent: string | null) => void;
   /** Called after the student list or a student's details change (added, new picture). */
   onStudentsChanged: () => void;
   /** Called with the saved settings so every screen switches to the new amounts immediately. */
@@ -100,7 +103,7 @@ const PAYOUT_SCHEDULES: { val: RewardSettings["payoutSchedule"]; label: string }
   { val: "manual", label: "Parent Initiated Only" },
 ];
 
-export function ParentSettings({ user, onStudentsChanged, onSettingsSaved, onRewardsRecalculated }: ParentSettingsProps) {
+export function ParentSettings({ user, onAccentSaved, onStudentsChanged, onSettingsSaved, onRewardsRecalculated }: ParentSettingsProps) {
   const [tab, setTab] = useState<SettingsTab>("rewards");
   const [settings, setSettings] = useState<RewardSettings>(DEFAULT_REWARD_SETTINGS);
   // What the server has, to tell whether a save changed any amounts.
@@ -490,6 +493,7 @@ export function ParentSettings({ user, onStudentsChanged, onSettingsSaved, onRew
 
       {tab === "account" && <>
         <AppearanceCard />
+        <AccentCard role="parent" accent={user.accent ?? null} onSaved={onAccentSaved} />
 
         <ChangePasswordCard />
       </>}

@@ -12,6 +12,14 @@
         try { c = localStorage.getItem("theme") || "system"; } catch (e) {}
         var dark = c === "dark" || (c !== "light" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+        // The signed-in person's accent color, cached by src/lib/accent.ts as "<role scale>:<choice>".
+        try {
+          var a = (localStorage.getItem("accent") || "").split(":");
+          if (a.length === 2) {
+            document.documentElement.setAttribute("data-accent-src", a[0]);
+            document.documentElement.setAttribute("data-accent", a[1]);
+          }
+        } catch (e) {}
       })();
     </script>
   </head>

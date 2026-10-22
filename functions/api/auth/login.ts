@@ -15,6 +15,7 @@ interface UserRow {
   email: string;
   password_hash: string;
   is_admin: number;
+  accent: string | null;
 }
 
 function json(data: unknown, status: number, headers?: Record<string, string>): Response {
@@ -36,7 +37,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   }
 
   const user = await context.env.DB.prepare(
-    "SELECT id, family_id, role, name, email, password_hash, is_admin FROM users WHERE email = ?",
+    "SELECT id, family_id, role, name, email, password_hash, is_admin, accent FROM users WHERE email = ?",
   )
     .bind(email)
     .first<UserRow>();
@@ -48,7 +49,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const session = await createSession(context.env.DB, user.id);
 
   return json(
-    { id: user.id, familyId: user.family_id, role: user.role, name: user.name, email: user.email, isAdmin: !!user.is_admin },
+    { id: user.id, familyId: user.family_id, role: user.role, name: user.name, email: user.email, isAdmin: !!user.is_admin, accent: user.accent ?? null },
     200,
     { "Set-Cookie": sessionCookieHeader(session.id, session.expiresAt) },
   );

@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Env } from "../../_lib/env";
 import { getSessionUser } from "../../_lib/session";
 import { aiLimitMessage, claimAiUse } from "../../_lib/aiUsage";
+import { toPlanJson, type AiPlanRow } from "../../_lib/aiPlans";
 
 function json(data: unknown, status: number): Response {
   return new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
@@ -49,7 +50,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (!title || !subject || !type || !dueDate) {
     return json({ error: "title, subject, type, and dueDate are required" }, 400);
   }
-  const details = body.details?.trim() || "None";
+  const detailsText = body.details?.trim() ?? "";
+  const details = detailsText || "None";
   const today = new Date().toISOString().split("T")[0];
 
   const claim = await claimAiUse(context.env.DB, user.familyId, "plan");
@@ -99,5 +101,27 @@ Create a realistic day-by-day action plan to complete this assignment successful
     return fail("Couldn't generate plan. Please try again.", 502);
   }
 
-  return json(response.parsed_output, 200);
+  // Saved so it survives a refresh and shows on her other devices.
+  const row: AiPlanRow = {
+    id: crypto.randomUUID(),
+    family_id: user.familyId,
+    student_id: user.id,
+    title,
+    subject,
+    type,
+    due_date: dueDate,
+    details: detailsText,
+    plan: JSON.stringify(response.parsed_output),
+    checked: "[]",
+    created_at: new Date().toISOString().replace("T", " ").slice(0, 19),
+  };
+  await context.env.DB
+    .prepare(
+      `INSERT INTO ai_plans (id, family_id, student_id, title, subject, type, due_date, details, plan, checked, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(row.id, row.family_id, row.student_id, row.title, row.subject, row.type, row.due_date, row.details, row.plan, row.checked, row.created_at)
+    .run();
+
+  return json(toPlanJson(row), 200);
 };

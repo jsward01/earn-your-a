@@ -1,5 +1,5 @@
 import type { ExtractedItem } from "./import/types";
-import type { AuthUser, Assignment, AssignmentPlan, AssignmentPlanForm, EmailAlertSettings, RewardSettings, SavingsGoal } from "../types";
+import type { AuthUser, Assignment, AssignmentPlanForm, EmailAlertSettings, RewardSettings, SavedPlan, SavingsGoal } from "../types";
 import { fromApiRow, type AssignmentApiRow } from "./assignments";
 
 async function parseJsonOrThrow(res: Response): Promise<unknown> {
@@ -337,13 +337,31 @@ export async function addAccount(role: "parent" | "student", name: string, email
   return (await parseJsonOrThrow(res)) as PasswordResetResult;
 }
 
-export async function generateAssignmentPlan(form: AssignmentPlanForm): Promise<AssignmentPlan> {
+/** Makes a plan with the AI and saves it to the student's account. */
+export async function generateAssignmentPlan(form: AssignmentPlanForm): Promise<SavedPlan> {
   const res = await fetch("/api/ai/assignment-plan", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(form),
   });
-  return (await parseJsonOrThrow(res)) as AssignmentPlan;
+  return (await parseJsonOrThrow(res)) as SavedPlan;
+}
+
+export async function fetchPlans(): Promise<SavedPlan[]> {
+  return (await parseJsonOrThrow(await fetch("/api/ai/plans"))) as SavedPlan[];
+}
+
+export async function setPlanChecked(id: string, checked: number[]): Promise<SavedPlan> {
+  const res = await fetch(`/api/ai/plans/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ checked }),
+  });
+  return (await parseJsonOrThrow(res)) as SavedPlan;
+}
+
+export async function deletePlan(id: string): Promise<void> {
+  await parseJsonOrThrow(await fetch(`/api/ai/plans/${encodeURIComponent(id)}`, { method: "DELETE" }));
 }
 
 export async function setStudentAvatar(userId: string, avatar: string | null): Promise<void> {

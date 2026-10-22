@@ -172,3 +172,13 @@ html[data-theme="dark"] .viz {
   --viz-grid: #2a303b;
   --viz-axis: #444b58;
 }
+
+/* A bar that slides back and forth while something of unknown length runs (the AI Planner). */
+@keyframes progress-indeterminate {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+.progress-indeterminate { animation: progress-indeterminate 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .progress-indeterminate { animation: none; width: 100%; opacity: 0.5; }
+}

@@ -140,6 +140,20 @@ export interface AssignmentPlan {
   steps: PlanStep[];
 }
 
+/** A plan the AI Planner made, saved to the student's account (private to them). */
+export interface SavedPlan {
+  id: string;
+  title: string;
+  subject: string;
+  type: string;
+  dueDate: string;
+  details: string;
+  plan: AssignmentPlan;
+  /** Indexes of the steps the student has checked off. */
+  checked: number[];
+  createdAt: string;
+}
+
 export interface AssignmentPlanForm {
   title: string;
   subject: string;

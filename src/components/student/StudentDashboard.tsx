@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Assignment, NewAssignmentForm } from "../../types";
-import { SUBJECTS } from "../../data/mockData";
+import { subjectOptions } from "../../lib/subjects";
+import { SubjectPicker } from "../shared/SubjectPicker";
 import { getRewardStatus } from "../../lib/rewards";
 import { useRewardSettings } from "../../lib/rewardSettingsContext";
 import { getSubjectColor, getStatusBadge, getDaysLeftColor } from "../../lib/styles";
@@ -16,7 +17,7 @@ interface StudentDashboardProps {
 const TABS = ["all", "pending", "graded", "missing", "makeup"] as const;
 type Tab = (typeof TABS)[number];
 
-const EMPTY_FORM: NewAssignmentForm = { title: "", subject: "Math", type: "assignment", dueDate: "" };
+const EMPTY_FORM: NewAssignmentForm = { title: "", subject: "", type: "assignment", dueDate: "" };
 
 const FIELD = "w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300";
 
@@ -31,6 +32,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function StudentDashboard({ assignments, setAssignments, onChanged }: StudentDashboardProps) {
   const rules = useRewardSettings();
+  const subjects = useMemo(() => subjectOptions(assignments), [assignments]);
   const [mode, setMode] = useState<"due" | "all">("due");
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -205,7 +207,7 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
             </Field>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Subject">
-                <select className={FIELD} value={newA.subject} onChange={e => setNewA({ ...newA, subject: e.target.value })}>{SUBJECTS.map(s => <option key={s}>{s}</option>)}</select>
+                <SubjectPicker className={FIELD} options={subjects} value={newA.subject} onChange={subject => setNewA({ ...newA, subject })} />
               </Field>
               <Field label="Type">
                 <select className={FIELD} value={newA.type} onChange={e => setNewA({ ...newA, type: e.target.value as NewAssignmentForm["type"] })}><option value="assignment">Assignment</option><option value="quiz">Quiz</option><option value="test">Test</option></select>
@@ -215,7 +217,7 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
               <input type="date" className={FIELD} value={newA.dueDate} onChange={e => setNewA({ ...newA, dueDate: e.target.value })} />
             </Field>
             <p className="text-xs text-gray-400">A parent enters grades once your work is turned in.</p>
-            <button onClick={handleAdd} disabled={!newA.title || !newA.dueDate || saving} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{saving ? "Saving…" : "Add Assignment"}</button>
+            <button onClick={handleAdd} disabled={!newA.title || !newA.subject.trim() || !newA.dueDate || saving} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{saving ? "Saving…" : "Add Assignment"}</button>
           </div>
         </div>
       )}
@@ -234,7 +236,7 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
                 </Field>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Subject">
-                    <select className={FIELD} value={editForm.subject} onChange={e => setEditForm({ ...editForm, subject: e.target.value })}>{[...new Set([...SUBJECTS, editForm.subject])].map(s => <option key={s}>{s}</option>)}</select>
+                    <SubjectPicker className={FIELD} options={subjects} value={editForm.subject} onChange={subject => setEditForm({ ...editForm, subject })} />
                   </Field>
                   <Field label="Type">
                     <select className={FIELD} value={editForm.type} onChange={e => setEditForm({ ...editForm, type: e.target.value as NewAssignmentForm["type"] })}><option value="assignment">Assignment</option><option value="quiz">Quiz</option><option value="test">Test</option></select>
@@ -243,7 +245,7 @@ export function StudentDashboard({ assignments, setAssignments, onChanged }: Stu
                 <Field label="Due Date">
                   <input type="date" className={FIELD} value={editForm.dueDate} onChange={e => setEditForm({ ...editForm, dueDate: e.target.value })} />
                 </Field>
-                <button onClick={handleSaveEdit} disabled={!editForm.title.trim() || !editForm.dueDate || saving} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{saving ? "Saving…" : "Save Changes"}</button>
+                <button onClick={handleSaveEdit} disabled={!editForm.title.trim() || !editForm.subject.trim() || !editForm.dueDate || saving} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold text-sm disabled:opacity-40">{saving ? "Saving…" : "Save Changes"}</button>
                 <button onClick={handleDelete} disabled={saving} className="w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold text-sm disabled:opacity-40">Delete Assignment</button>
               </>
             ) : (

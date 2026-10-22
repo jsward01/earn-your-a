@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AuthUser, Assignment, RewardSettings, View } from "./types";
 import { fetchCurrentUser, fetchAssignments, fetchFamilyAccounts, fetchRewardSettings, fetchRewardSummary, logout as apiLogout, setActiveStudent, type RewardSummary } from "./lib/api";
 import { DEFAULT_REWARD_SETTINGS } from "./lib/rewards";
+import { subjectOptions } from "./lib/subjects";
 import { RewardSettingsContext } from "./lib/rewardSettingsContext";
 import { LoginScreen } from "./components/LoginScreen";
 import { AppHeader, type StudentOption } from "./components/AppHeader";
@@ -212,7 +213,7 @@ export default function App() {
         {view === "calendar" && <CalendarView assignments={assignments} isParent={isParent} />}
         {view === "weekly" && <WeeklySummary assignments={assignments} isParent={isParent} studentName={studentName} />}
         {view === "notifications" && <NotificationCenter key={settingsLoaded ? "loaded" : "defaults"} assignments={assignments} isParent={isParent} payoutPending={payoutPending} studentName={studentName} />}
-        {!isParent && view === "ai" && <AIBreakdown />}
+        {!isParent && view === "ai" && <AIBreakdown assignments={assignments} />}
         {!isParent && view === "profile" && <StudentProfile name={user.name} />}
         {view === "balance" && (
           <BalancePage
@@ -246,6 +247,7 @@ export default function App() {
           onClose={() => setEditor(null)}
           onSaved={handleAssignmentSaved}
           onDeleted={handleAssignmentDeleted}
+          subjects={subjectOptions(assignments)}
         />
       )}
     </div>

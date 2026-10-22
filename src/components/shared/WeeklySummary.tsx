@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Assignment } from "../../types";
 import { getSubjectLight } from "../../lib/styles";
-import { SUBJECTS } from "../../data/mockData";
+import { subjectOptions } from "../../lib/subjects";
 import { fetchRewardTransactions, type RewardTransaction } from "../../lib/api";
 import { potentialReward } from "../../lib/rewards";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
@@ -59,7 +59,8 @@ export function WeeklySummary({ assignments, isParent, studentName }: WeeklySumm
   const weekNet = weekEarned - weekLost;
   const monthlyTotal = assignmentTx.filter(t => new Date(t.createdAt) >= monthStart).reduce((s, t) => s + t.amount, 0);
 
-  const subjectStats = SUBJECTS.map(sub => {
+  // The student's real classes (the old fixed list matched none of Susana's imported class names).
+  const subjectStats = subjectOptions(assignments).map(sub => {
     const subs = assignments.filter(a => a.subject === sub && a.grade !== null);
     const avg = subs.length ? Math.round(subs.reduce((s, a) => s + (a.grade ?? 0), 0) / subs.length) : null;
     const subMissing = assignments.filter(a => a.subject === sub && a.status === "missing").length;

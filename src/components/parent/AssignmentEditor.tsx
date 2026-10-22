@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Assignment, AssignmentStatus, AssignmentType } from "../../types";
-import { SUBJECTS } from "../../data/mockData";
+import { SubjectPicker } from "../shared/SubjectPicker";
 import {
   createAssignment, deleteAssignment, fetchAssignmentHistory, previewAssignmentUpdate, updateAssignment,
   type AssignmentImpact, type AssignmentInput, type HistoryEntry,
@@ -15,6 +15,8 @@ interface AssignmentEditorProps {
   onClose: () => void;
   onSaved: (a: Assignment) => void;
   onDeleted: (id: string) => void;
+  /** From `subjectOptions()`: the student's classes. */
+  subjects: string[];
 }
 
 interface Form {
@@ -29,18 +31,18 @@ interface Form {
 function toForm(a: Assignment | null): Form {
   return a
     ? { title: a.title, subject: a.subject, type: a.type, dueDate: a.dueDate, status: a.status, grade: a.grade !== null ? String(a.grade) : "" }
-    : { title: "", subject: "Math", type: "assignment", dueDate: "", status: "pending", grade: "" };
+    : { title: "", subject: "", type: "assignment", dueDate: "", status: "pending", grade: "" };
 }
 
 /** null when the form can't be sent yet (a graded item needs a numeric grade). */
 function toPayload(f: Form): AssignmentInput | null {
   const grade = f.status === "graded" ? Number(f.grade) : null;
   if (f.status === "graded" && (f.grade.trim() === "" || !Number.isFinite(grade))) return null;
-  if (!f.title.trim() || !f.dueDate) return null;
-  return { title: f.title.trim(), subject: f.subject, type: f.type, dueDate: f.dueDate, status: f.status, grade };
+  if (!f.title.trim() || !f.subject.trim() || !f.dueDate) return null;
+  return { title: f.title.trim(), subject: f.subject.trim(), type: f.type, dueDate: f.dueDate, status: f.status, grade };
 }
 
-export function AssignmentEditor({ assignment, studentName, onClose, onSaved, onDeleted }: AssignmentEditorProps) {
+export function AssignmentEditor({ assignment, studentName, onClose, onSaved, onDeleted, subjects }: AssignmentEditorProps) {
   const fmt = useFormatAmount();
   const signed = (n: number | null | undefined) => fmt(n ?? 0, { signed: true });
   const isNew = assignment === null;
@@ -117,9 +119,7 @@ export function AssignmentEditor({ assignment, studentName, onClose, onSaved, on
 
         <input className={input} placeholder="Title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
         <div className="grid grid-cols-2 gap-3">
-          <select className={input} value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })}>
-            {[...new Set([...SUBJECTS, form.subject])].map(s => <option key={s}>{s}</option>)}
-          </select>
+          <SubjectPicker className={input} options={subjects} value={form.subject} onChange={subject => setForm({ ...form, subject })} />
           <select className={input} value={form.type} onChange={e => setForm({ ...form, type: e.target.value as AssignmentType })}>
             <option value="assignment">Assignment</option><option value="quiz">Quiz</option><option value="test">Test</option>
           </select>

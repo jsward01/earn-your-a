@@ -1,11 +1,12 @@
-import { useState } from "react";
-import type { AssignmentPlan, AssignmentPlanForm } from "../../types";
-import { SUBJECTS } from "../../data/mockData";
+import { useMemo, useState } from "react";
+import type { Assignment, AssignmentPlan, AssignmentPlanForm } from "../../types";
 import { generateAssignmentPlan } from "../../lib/api";
+import { subjectOptions } from "../../lib/subjects";
+import { SubjectPicker } from "../shared/SubjectPicker";
 
 type Step = "form" | "plan";
 
-const EMPTY_FORM: AssignmentPlanForm = { title: "", subject: "English", type: "assignment", dueDate: "", details: "" };
+const EMPTY_FORM: AssignmentPlanForm = { title: "", subject: "", type: "assignment", dueDate: "", details: "" };
 
 const EXAMPLES: { title: string; subject: string; type: string }[] = [
   { title: "10-page research paper on WW2", subject: "History", type: "research paper" },
@@ -13,7 +14,8 @@ const EXAMPLES: { title: string; subject: string; type: string }[] = [
   { title: "Book report on To Kill a Mockingbird", subject: "English", type: "essay" },
 ];
 
-export function AIBreakdown() {
+export function AIBreakdown({ assignments }: { assignments: Assignment[] }) {
+  const subjects = useMemo(() => subjectOptions(assignments), [assignments]);
   const [step, setStep] = useState<Step>("form");
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<AssignmentPlan | null>(null);
@@ -71,10 +73,10 @@ export function AIBreakdown() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Subject</label>
-                <select className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-violet-300"
-                  value={form.subject} onChange={e => setForm({ ...form, subject: e.target.value })}>
-                  {SUBJECTS.map(s => <option key={s}>{s}</option>)}
-                </select>
+                <div className="mt-1">
+                  <SubjectPicker options={subjects} value={form.subject} onChange={subject => setForm({ ...form, subject })}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300" />
+                </div>
               </div>
               <div>
                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Type</label>
@@ -109,7 +111,7 @@ export function AIBreakdown() {
             {error && <p className="text-sm text-red-500 text-center">{error}</p>}
             <button
               onClick={generatePlan}
-              disabled={!form.title || !form.dueDate || loading}
+              disabled={!form.title || !form.subject.trim() || !form.dueDate || loading}
               className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 text-white py-4 rounded-xl font-bold text-sm disabled:opacity-40 transition-all flex items-center justify-center gap-2"
             >
               {loading ? (
@@ -127,7 +129,7 @@ export function AIBreakdown() {
             <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-3">Try an example</p>
             <div className="space-y-2">
               {EXAMPLES.map((ex, i) => (
-                <button key={i} onClick={() => setForm({ ...form, title: ex.title, subject: ex.subject, type: ex.type })}
+                <button key={i} onClick={() => setForm({ ...form, title: ex.title, type: ex.type, subject: subjects.includes(ex.subject) ? ex.subject : form.subject })}
                   className="w-full text-left px-4 py-3 bg-gray-50 hover:bg-violet-50 rounded-xl text-sm text-gray-600 hover:text-violet-700 transition-all border border-transparent hover:border-violet-200">
                   <span className="font-medium">{ex.title}</span>
                   <span className="text-gray-400 ml-2">• {ex.subject}</span>

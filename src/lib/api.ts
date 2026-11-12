@@ -193,6 +193,16 @@ export async function saveAccent(accent: string | null): Promise<void> {
   await parseJsonOrThrow(res);
 }
 
+/** A student's own choice of which cards show at the bottom of their Home page; a field left out keeps its value. */
+export async function saveHomeCards(cards: { classAverages?: boolean; progress?: boolean }): Promise<{ showClassAverages: boolean; showProgress: boolean }> {
+  const res = await fetch("/api/account/home-cards", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cards),
+  });
+  return (await parseJsonOrThrow(res)) as { showClassAverages: boolean; showProgress: boolean };
+}
+
 /** The signed-in person's read and dismissed alerts (Alerts page). */
 export async function fetchNotificationState(): Promise<{ read: string[]; dismissed: string[] }> {
   return (await parseJsonOrThrow(await fetch("/api/notification-state"))) as { read: string[]; dismissed: string[] };

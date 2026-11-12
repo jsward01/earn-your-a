@@ -10,6 +10,9 @@ export interface SessionUser {
   isAdmin: boolean;
   /** Their own accent color; null = the role's default. */
   accent: string | null;
+  /** Students: show the Class Averages / Progress cards on their Home page (their own choice, default on). */
+  showClassAverages: boolean;
+  showProgress: boolean;
 }
 
 export async function createSession(db: D1Database, userId: string): Promise<{ id: string; expiresAt: string }> {
@@ -46,6 +49,8 @@ interface SessionRow {
   email: string;
   is_admin: number;
   accent: string | null;
+  show_class_averages: number | null;
+  show_progress: number | null;
 }
 
 export async function getSessionUser(db: D1Database, request: Request): Promise<SessionUser | null> {
@@ -54,7 +59,7 @@ export async function getSessionUser(db: D1Database, request: Request): Promise<
 
   const row = await db
     .prepare(
-      `SELECT u.id, u.family_id, u.role, u.name, u.email, u.is_admin, u.accent
+      `SELECT u.id, u.family_id, u.role, u.name, u.email, u.is_admin, u.accent, u.show_class_averages, u.show_progress
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.id = ? AND s.expires_at > datetime('now')`,
     )
@@ -62,5 +67,6 @@ export async function getSessionUser(db: D1Database, request: Request): Promise<
     .first<SessionRow>();
 
   if (!row) return null;
-  return { id: row.id, familyId: row.family_id, role: row.role, name: row.name, email: row.email, isAdmin: !!row.is_admin, accent: row.accent ?? null };
+  return { id: row.id, familyId: row.family_id, role: row.role, name: row.name, email: row.email, isAdmin: !!row.is_admin, accent: row.accent ?? null,
+    showClassAverages: row.show_class_averages !== 0, showProgress: row.show_progress !== 0 };
 }

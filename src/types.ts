@@ -88,6 +88,9 @@ export interface AuthUser {
   isAdmin: boolean;
   /** Their own accent color (src/lib/accent.ts); null = the role's default. */
   accent?: string | null;
+  /** Students: show the Class Averages / Progress cards on their Home page (their own choice; missing = shown). */
+  showClassAverages?: boolean;
+  showProgress?: boolean;
 }
 
 export type View =

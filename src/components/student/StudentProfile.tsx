@@ -5,6 +5,7 @@ import { Avatar } from "../shared/Avatar";
 import { AvatarPicker } from "../shared/AvatarPicker";
 import { AppearanceCard } from "../shared/AppearanceCard";
 import { AccentCard } from "../shared/AccentCard";
+import { HomeCardsCard } from "./HomeCardsCard";
 
 const CONNECTED_ACCOUNTS = [
   { name: "Google Classroom", icon: "🎓" },
@@ -21,9 +22,12 @@ interface StudentProfileProps {
   onAvatarChanged: () => void;
   accent: string | null;
   onAccentSaved: (accent: string | null) => void;
+  showClassAverages: boolean;
+  showProgress: boolean;
+  onHomeCardsSaved: (cards: { showClassAverages: boolean; showProgress: boolean }) => void;
 }
 
-export function StudentProfile({ userId, name, avatar, onAvatarChanged, accent, onAccentSaved }: StudentProfileProps) {
+export function StudentProfile({ userId, name, avatar, onAvatarChanged, accent, onAccentSaved, showClassAverages, showProgress, onHomeCardsSaved }: StudentProfileProps) {
   const [picking, setPicking] = useState(false);
 
   return (
@@ -44,6 +48,7 @@ export function StudentProfile({ userId, name, avatar, onAvatarChanged, accent, 
       )}
       <AppearanceCard />
       <AccentCard role="student" accent={accent} onSaved={onAccentSaved} />
+      <HomeCardsCard showClassAverages={showClassAverages} showProgress={showProgress} onSaved={onHomeCardsSaved} />
       <ChangePasswordCard />
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
         <p className="text-xs text-gray-400 font-medium">CONNECTED ACCOUNTS</p>

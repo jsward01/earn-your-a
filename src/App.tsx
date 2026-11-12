@@ -235,8 +235,9 @@ export default function App() {
             No students yet. Add one in Settings → Account Access.
           </div>
         )}
-        {!isParent && view === "dashboard" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} onChanged={refreshSummary} />}
-        {!isParent && view === "rewards" && <StudentRewards summary={summary} assignments={assignments} onChanged={refreshSummary} />}
+        {!isParent && view === "dashboard" && <StudentDashboard assignments={assignments} setAssignments={setAssignments} onChanged={refreshSummary}
+          showClassAverages={user.showClassAverages ?? true} showProgress={user.showProgress ?? true} />}
+        {!isParent && view === "rewards" && <StudentRewards summary={summary} onChanged={refreshSummary} />}
         {view === "messages" && (isParent || unread.allowed) && (
           <MessagesScreen isParent={isParent} userId={user.id} studentName={isParent ? studentName : user.name} onRead={refreshUnread} />
         )}
@@ -244,7 +245,8 @@ export default function App() {
         {view === "weekly" && <WeeklySummary assignments={assignments} isParent={isParent} studentName={studentName} />}
         {view === "notifications" && <NotificationCenter key={settingsLoaded ? "loaded" : "defaults"} assignments={assignments} isParent={isParent} payoutPending={payoutPending} studentName={studentName} />}
         {!isParent && view === "ai" && <AIBreakdown assignments={assignments} />}
-        {!isParent && view === "profile" && <StudentProfile userId={user.id} name={user.name} avatar={summary?.studentAvatar ?? null} onAvatarChanged={refreshSummary} accent={user.accent ?? null} onAccentSaved={accent => setUser({ ...user, accent })} />}
+        {!isParent && view === "profile" && <StudentProfile userId={user.id} name={user.name} avatar={summary?.studentAvatar ?? null} onAvatarChanged={refreshSummary} accent={user.accent ?? null} onAccentSaved={accent => setUser({ ...user, accent })}
+          showClassAverages={user.showClassAverages ?? true} showProgress={user.showProgress ?? true} onHomeCardsSaved={cards => setUser({ ...user, ...cards })} />}
         {view === "balance" && (
           <BalancePage
             assignments={assignments}

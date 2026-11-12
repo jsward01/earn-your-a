@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import type { Assignment, SavingsGoal } from "../../types";
-import { ProgressCard } from "../shared/ProgressCard";
+import type { SavingsGoal } from "../../types";
 import { unitWord } from "../../lib/rewards";
 import { useFormatAmount, useRewardSettings } from "../../lib/rewardSettingsContext";
 import {
@@ -17,8 +16,6 @@ import { getSubjectLight, bannerGradient } from "../../lib/styles";
 
 interface StudentRewardsProps {
   summary: RewardSummary | null;
-  /** Her own work, for the Progress charts. */
-  assignments: Assignment[];
   onChanged: () => void;
 }
 
@@ -55,7 +52,7 @@ function groupByWeek(transactions: RewardTransaction[]): Week[] {
   return [...weeks.values()].sort((a, b) => b.key.localeCompare(a.key));
 }
 
-export function StudentRewards({ summary, assignments, onChanged }: StudentRewardsProps) {
+export function StudentRewards({ summary, onChanged }: StudentRewardsProps) {
   const settings = useRewardSettings();
   const fmt = useFormatAmount();
   const [expandedWeek, setExpandedWeek] = useState<string | null>(null);
@@ -172,7 +169,6 @@ export function StudentRewards({ summary, assignments, onChanged }: StudentRewar
           </div>
         ))}
       </div>
-      <ProgressCard assignments={assignments} accent="indigo" />
 
       {showPayoutModal && (
         <div className="fixed inset-0 bg-black/40 flex items-end z-50">
